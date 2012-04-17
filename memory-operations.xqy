@@ -332,7 +332,7 @@ declare function mem-op:process(
 						)
 				} ,
 				for $step in ($common-parent/child::node() intersect $others/ancestor::node())
-				let $nodes-to-mod := $others intersect $step/descendant::node(),
+				let $nodes-to-mod := $others[./ancestor::node() intersect $step],
 					$nodes-to-mod-id := mem-op:generate-id($nodes-to-mod[1]),
 					$nodes-to-mod-size := count($nodes-to-mod)
 				return
@@ -408,6 +408,7 @@ declare function mem-op:process(
 			2,
 			count($common-ancestors),
 			$operation,
+			$all-nodes-to-modify,
 			$all-nodes-to-modify intersect $common-ancestors,
 			$new-nodes,
 			(: merge trees in at the first common ancestor :)
@@ -503,6 +504,7 @@ declare function mem-op:process-subtree(
 		1, 
 		count($ancestors), 
 		$operations,
+		$node-to-modify,
 		$ancestor-nodes-to-modify,
 		$new-node,
 		let $operation := 	typeswitch ($operations)
@@ -681,6 +683,7 @@ declare function mem-op:process-ancestors(
 	$current-position as xs:integer,
 	$ancestor-size as xs:integer,
 	$operations as item()*,
+	$nodes-to-modify as node()*,
 	$ancestor-nodes-to-modify as node()*,
 	$new-node as node()*,
 	$result as node()*
@@ -695,6 +698,7 @@ declare function mem-op:process-ancestors(
 			$current-position,
 			$ancestor-size,
 			$operations,
+			$nodes-to-modify,
 			$ancestor-nodes-to-modify,
 			$new-node,
 			$result,
@@ -708,6 +712,7 @@ declare function mem-op:process-ancestors(
 	$current-position as xs:integer,
 	$ancestor-size as xs:integer,
 	$operations as item()*,
+	$nodes-to-modify as node()*,
 	$ancestor-nodes-to-modify as node()*,
 	$new-node as node()*,
 	$result as node()*,
@@ -720,6 +725,7 @@ declare function mem-op:process-ancestors(
 		$current-position + 1,
 		$ancestor-size,
 		$operations,
+		$nodes-to-modify,
 		$ancestor-nodes-to-modify intersect $currrent-ancestor/ancestor::node(),
 		$new-node,
 		if (some $n in $ancestor-nodes-to-modify satisfies $n is $currrent-ancestor)
@@ -729,7 +735,7 @@ declare function mem-op:process-ancestors(
 				typeswitch ($currrent-ancestor)
 				case element() return
 					element {node-name($currrent-ancestor)} {
-						$currrent-ancestor/attribute(),
+						$currrent-ancestor/attribute() except $nodes-to-modify,
 						$last-ancestor/preceding-sibling::node(),
 						$result,
 						$last-ancestor/following-sibling::node()
@@ -748,7 +754,7 @@ declare function mem-op:process-ancestors(
 			typeswitch ($currrent-ancestor)
 			case element() return
 				element {node-name($currrent-ancestor)} {
-					$currrent-ancestor/attribute(),
+					$currrent-ancestor/attribute() except $nodes-to-modify,
 					$last-ancestor/preceding-sibling::node(),
 					$result,
 					$last-ancestor/following-sibling::node()

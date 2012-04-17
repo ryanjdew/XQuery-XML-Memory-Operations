@@ -120,6 +120,18 @@ as item()*
 			return assert:equal(fn:string($c), 'this new comment'))
 };
 
+declare function replace-attributes()
+as item()*
+{
+   let $new-xml := mem:replace(
+						$test-xml//p/@class,
+						attribute class {"new-class"}
+					)
+	return (assert:equal(fn:count($new-xml//p/@class), fn:count($test-xml//p/@class)),
+			for $c in $new-xml//p/@class
+			return assert:equal(fn:string($c), 'new-class'))
+};
+
 declare function advanced-operation()
 as item()*
 {
