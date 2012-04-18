@@ -1,4 +1,4 @@
-xquery version "1.0-ml";
+xquery version "3.0";
 (:~
 Copyright (c) 2012 Ryan Dew
 
@@ -20,8 +20,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 module namespace mem-op = "http://maxdewpoint.blogspot.com/memory-operations";
 declare default function namespace "http://www.w3.org/2005/xpath-functions";
-
-declare option xdmp:mapping "false";
 
 declare variable $start-mod-qname := QName("","start-modifiers");
 declare variable $end-mod-qname := QName("","end-modifiers");
@@ -769,6 +767,4 @@ declare function mem-op:process-ancestors(
 
 declare function mem-op:generate-id($node as node()) {
 	generate-id($node)
-	(: Use the following line of code instead of the previous for full XQuery 1.0 compatability. generate-id is faster, though :)
-	(: concat('/',$node/string-join(ancestor-or-self::*/(let $name := node-name(.) return concat(string($name),'[',count(./preceding-sibling::node()[node-name(.) eq $name])+1,']')), '/')) :)
 };
