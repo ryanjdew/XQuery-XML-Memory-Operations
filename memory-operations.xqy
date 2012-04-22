@@ -267,7 +267,7 @@ declare function mem-op:process(
 {
 	mem-op:process(
 		$nodes-to-modify,
-		$nodes-to-modify,
+		(),
 		$new-nodes,
 		$operation,
 		$nodes-to-modify-size,
@@ -278,7 +278,7 @@ declare function mem-op:process(
 
 declare function mem-op:process(
     $nodes-to-modify as node()+,
-    $all-nodes-to-modify as node()+,
+    $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
     $operation as item()*,
 	$nodes-to-modify-size as xs:integer,
@@ -286,10 +286,7 @@ declare function mem-op:process(
 ) as node()*
 {
 	let $common-parent := $common-ancestors[1],
-		$all-ancestors := $common-parent/ancestor-or-self::node(),
-		$children := $nodes-to-modify[./parent::node() is $common-parent],
-		$children-descendants := $nodes-to-modify intersect $children/descendant::node(),
-		$others := $nodes-to-modify except ($children,$children-descendants)
+		$all-ancestors := $common-parent/ancestor-or-self::node()
 	return
 		mem-op:process(
 			$nodes-to-modify,
@@ -299,67 +296,35 @@ declare function mem-op:process(
 			$nodes-to-modify-size,
 			$common-ancestors,		
 			(: create new XML trees for all the unique paths to the items to modify :)
-			(
-			for $mod-node at $pos in $children
-			let	$mod-node-id := mem-op:generate-id($mod-node),
-				$mod-descendants := $children-descendants intersect $mod-node/descendant::node(),
-				$mod-descendants-size := count($mod-descendants),
-				$subtree := reverse(mem-op:find-ancestor-intersect($mod-descendants, 1, $mod-descendants-size, ()) except $all-ancestors)
+			for $mod-node in ($common-parent/child::node(),$common-parent/attribute::node()) intersect $nodes-to-modify/ancestor-or-self::node()
+			let	$nodes-to-mod := ($mod-node/descendant-or-self::node(),$mod-node/descendant-or-self::node()/attribute::node()) intersect $nodes-to-modify,
+				$mod-node-id := mem-op:generate-id($nodes-to-mod[1]),
+				$descendant-nodes-to-mod := $nodes-to-mod except $mod-node,
+				$descendant-nodes-to-mod-size := count($descendant-nodes-to-mod)
 			return 
 				element tree {
 					attribute mem-op:id {$mod-node-id},
-					if (exists($mod-descendants))
+					if ($descendant-nodes-to-mod-size eq 0)
 					then 
-						mem-op:process(
-							$mod-descendants,
-							$all-nodes-to-modify,
-							$new-nodes,
-							$operation,
-							$mod-descendants-size,
-							(: find the ancestors that all nodes to modify have in common and reverse order for recursion up the tree :)
-							if (exists($subtree))
-							then $subtree
-							else $mod-node
-						)
-					else
 						mem-op:process-subtree(
-							reverse($mod-node/ancestor::node() except $all-ancestors),
-							$mod-node,
+							$nodes-to-mod/ancestor::node() except $all-ancestors,
+							$nodes-to-mod,
 							$mod-node-id,
 							$new-nodes,
 							$operation,
-							reverse($all-nodes-to-modify intersect $mod-node/ancestor::node())
+							()
+						)
+					else
+						mem-op:process(
+							$descendant-nodes-to-mod,
+							$nodes-to-mod,
+							$new-nodes,
+							$operation,
+							$descendant-nodes-to-mod-size,
+							(: find the ancestors that all nodes to modify have in common and reverse order for recursion up the tree :)
+							reverse(mem-op:find-ancestor-intersect($descendant-nodes-to-mod, 1, $descendant-nodes-to-mod-size, ()) except $all-ancestors)
 						)
 				} ,
-				for $step in ($common-parent/child::node() intersect $others/ancestor::node())
-				let $nodes-to-mod := $others[./ancestor::node() intersect $step],
-					$nodes-to-mod-id := mem-op:generate-id($nodes-to-mod[1]),
-					$nodes-to-mod-size := count($nodes-to-mod)
-				return
-		   			element tree {
-		   				attribute mem-op:id {$nodes-to-mod-id},
-						if ($nodes-to-mod-size eq 1)
-						then
-							mem-op:process-subtree(
-								reverse($nodes-to-mod/ancestor::node() except $all-ancestors),
-								$nodes-to-mod,
-								$nodes-to-mod-id,
-								$new-nodes,
-								$operation,
-								reverse($all-nodes-to-modify intersect $nodes-to-mod/ancestor::node())
-							)
-						else
-					   		mem-op:process(
-					   			$nodes-to-mod,
-					   			$all-nodes-to-modify,
-					   			$new-nodes,
-					   			$operation,
-					   			$nodes-to-mod-size,
-					   			(: find the ancestors that all nodes to modify have in common and reverse order for recursion up the tree :)
-					   			reverse(mem-op:find-ancestor-intersect($nodes-to-mod, 1, $nodes-to-mod-size, ()) except $all-ancestors)
-					   		)
-					}
-			),
 			(: get the first common parent of all the items to modify :)
 			$common-parent
 		)
@@ -367,7 +332,7 @@ declare function mem-op:process(
 
 declare function mem-op:process(
     $nodes-to-modify as node()+,
-    $all-nodes-to-modify as node()+,
+    $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
     $operation as item()*,
 	$nodes-to-modify-size as xs:integer,
@@ -390,7 +355,7 @@ declare function mem-op:process(
 };
 declare function mem-op:process(
     $nodes-to-modify as node()+,
-    $all-nodes-to-modify as node()+,
+    $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
     $operation as item()*,
 	$nodes-to-modify-size as xs:integer,
@@ -409,7 +374,7 @@ declare function mem-op:process(
 			count($common-ancestors),
 			$operation,
 			$all-nodes-to-modify,
-			$all-nodes-to-modify intersect $common-ancestors,
+			$nodes-to-modify,
 			$new-nodes,
 			(: merge trees in at the first common ancestor :)
 			if (some $n in $all-nodes-to-modify satisfies $n is $common-parent)
@@ -424,7 +389,7 @@ declare function mem-op:process(
 								1, 
 								$nodes-to-modify-size,
 								$trees,
-								($common-parent/attribute(),$common-parent/node()) except $all-nodes-to-modify/ancestor-or-self::node(),
+								($common-parent/attribute(),$common-parent/node()) except $nodes-to-modify/ancestor-or-self::node(),
 								()
 							)
 						}
@@ -435,7 +400,7 @@ declare function mem-op:process(
 								1, 
 								$nodes-to-modify-size,
 								$trees, 
-								($common-parent/attribute(),$common-parent/node()) except $all-nodes-to-modify/ancestor-or-self::node(),
+								($common-parent/attribute(),$common-parent/node()) except $nodes-to-modify/ancestor-or-self::node(),
 								()
 							)
 						}
@@ -454,7 +419,7 @@ declare function mem-op:process(
 							1, 
 							$nodes-to-modify-size,
 							$trees,
-							($common-parent/attribute(),$common-parent/node()) except $all-nodes-to-modify/ancestor-or-self::node(),
+							($common-parent/attribute(),$common-parent/node()) except $nodes-to-modify/ancestor-or-self::node(),
 							()
 						)
 					}
@@ -465,7 +430,7 @@ declare function mem-op:process(
 							1, 
 							$nodes-to-modify-size,
 							$trees, 
-							($common-parent/attribute(),$common-parent/node()) except $all-nodes-to-modify/ancestor-or-self::node(),
+							($common-parent/attribute(),$common-parent/node()) except $nodes-to-modify/ancestor-or-self::node(),
 							()
 						)
 					}
@@ -658,18 +623,18 @@ declare function mem-op:place-trees(
 	$current-modified as node(),
 	$prev-nodes as node()*,
 	$current-modified-id as xs:string,
-	$currrent-tree as node()*
+	$current-tree as node()*
 ) as node()*
 {
 	mem-op:place-trees(
 		$nodes-to-modify, 
 		$current-position + 1, 
 		$nodes-to-modify-size, 
-		$trees,
+		$trees except $current-modified,
 		(: filter out nodes already used :)
 		$remaining-nodes except $prev-nodes, 
 		(: pass the result we already have, plus previous nodes and the new tree :)
-		($result,$prev-nodes, $currrent-tree/@* except $currrent-tree/@mem-op:id, $currrent-tree/node())
+		($result,$prev-nodes, $current-tree/@* except $current-tree/@mem-op:id, $current-tree/node())
 	)
 };
 
