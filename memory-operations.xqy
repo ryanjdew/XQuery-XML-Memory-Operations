@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.3.2
+@version 0.3.3
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions.
 :)
@@ -340,35 +340,37 @@ declare function mem-op:process(
 		(: get the first common parent of all the items to modify :)
 		$common-parent,
 		(: create new XML trees for all the unique paths to the items to modify :)
-		for $mod-node in ($common-parent/child::node(),$common-parent/attribute::node()) intersect $nodes-to-modify/ancestor-or-self::node()
-		let	$nodes-to-mod := ($mod-node/descendant-or-self::node(),$mod-node/descendant-or-self::node()/attribute::node()) intersect $nodes-to-modify,
-			$mod-node-id := mem-op:generate-id($nodes-to-mod[1]),
-			$descendant-nodes-to-mod := $nodes-to-mod except $mod-node,
-			$descendant-nodes-to-mod-size := count($descendant-nodes-to-mod)
-		return 
-			element tree {
-				attribute mem-op:id {$mod-node-id},
-				if ($descendant-nodes-to-mod-size eq 0)
-				then 
-					mem-op:process-subtree(
-						$nodes-to-mod/ancestor::node() except $all-ancestors,
-						$nodes-to-mod,
-						$mod-node-id,
-						$new-nodes,
-						$operation,
-						()
-					)
-				else
-					mem-op:process(
-						$descendant-nodes-to-mod,
-						$nodes-to-mod,
-						$new-nodes,
-						$operation,
-						$descendant-nodes-to-mod-size,
-						(: find the ancestors that all nodes to modify have in common and reverse order for recursion up the tree :)
-						reverse(mem-op:find-ancestor-intersect($descendant-nodes-to-mod, 1, $descendant-nodes-to-mod-size, ()) except $all-ancestors)
-					)
-			} 
+		element mem-op:trees {
+			for $mod-node in ($common-parent/child::node(),$common-parent/attribute::node()) intersect $nodes-to-modify/ancestor-or-self::node()
+			let	$nodes-to-mod := ($mod-node/descendant-or-self::node(),$mod-node/descendant-or-self::node()/attribute::node()) intersect $nodes-to-modify,
+				$mod-node-id := mem-op:generate-id($nodes-to-mod[1]),
+				$descendant-nodes-to-mod := $nodes-to-mod except $mod-node,
+				$descendant-nodes-to-mod-size := count($descendant-nodes-to-mod)
+			return 
+				element {QName("http://maxdewpoint.blogspot.com/memory-operations",concat("_",replace($mod-node-id,'[/\]\[]','_')))} {
+					attribute mem-op:id {$mod-node-id},
+					if ($descendant-nodes-to-mod-size eq 0)
+					then 
+						mem-op:process-subtree(
+							$nodes-to-mod/ancestor::node() except $all-ancestors,
+							$nodes-to-mod,
+							$mod-node-id,
+							$new-nodes,
+							$operation,
+							()
+						)
+					else
+						mem-op:process(
+							$descendant-nodes-to-mod,
+							$nodes-to-mod,
+							$new-nodes,
+							$operation,
+							$descendant-nodes-to-mod-size,
+							(: find the ancestors that all nodes to modify have in common and reverse order for recursion up the tree :)
+							reverse(mem-op:find-ancestor-intersect($descendant-nodes-to-mod, 1, $descendant-nodes-to-mod-size, ()) except $all-ancestors)
+						)
+				} 
+		}
 	)
 };
 
@@ -422,7 +424,7 @@ declare function mem-op:process(
 			$nodes-to-modify,
 			$new-nodes,
 			(: merge trees in at the first common ancestor :)
-			if (some $n in $all-nodes-to-modify satisfies $n is $common-parent)
+			if (some $n in ($nodes-to-modify union $all-nodes-to-modify) satisfies $n is $common-parent)
 			then
 				mem-op:process-subtree(
 					(),
@@ -481,8 +483,8 @@ declare function mem-op:process(
 					}
 				default return ()
 		)
-	else if (exists($trees))
-	then $trees/node()
+	else if (exists($trees/*))
+	then $trees/*/node()
 	else 
 		for $node in $nodes-to-modify
 		return
@@ -628,7 +630,7 @@ declare function mem-op:place-trees(
 		$current-modified,
 		(: calculate the nodes that occur previous to the current modified :)
 		$remaining-nodes[. << $current-modified],
-		mem-op:generate-id($current-modified)
+		QName("http://maxdewpoint.blogspot.com/memory-operations",concat("_",replace(mem-op:generate-id($current-modified),'[/\]\[]','_')))
 	)
 };
 
@@ -641,7 +643,7 @@ declare function mem-op:place-trees(
     $result as node()*,
 	$current-modified as node(),
 	$prev-nodes as node()*,
-	$current-modified-id as xs:string
+	$current-modified-id as xs:QName
 ) as node()*
 {
 	mem-op:place-trees(
@@ -654,7 +656,7 @@ declare function mem-op:place-trees(
 		$current-modified,
 		$prev-nodes,
 		$current-modified-id,
-		$trees[@mem-op:id eq $current-modified-id]
+		$trees/*[node-name(.) eq $current-modified-id]
 	)
 };
 
@@ -667,7 +669,7 @@ declare function mem-op:place-trees(
     $result as node()*,
 	$current-modified as node(),
 	$prev-nodes as node()*,
-	$current-modified-id as xs:string,
+	$current-modified-id as xs:QName,
 	$current-tree as node()*
 ) as node()*
 {
