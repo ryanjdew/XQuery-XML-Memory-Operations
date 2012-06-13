@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.4.0
+@version 0.4.1
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions.
 :)
@@ -136,7 +136,7 @@ Replaces a value of an element or attribute
 :)
 declare function mem-op:replace-value(
     $nodes-to-change as node()+,
-	$value as xs:string
+	$value as xs:anyAtomicType?
 ) as node()?
 {
 	if ($queued)
@@ -146,12 +146,30 @@ declare function mem-op:replace-value(
 		mem-op:process($nodes-to-change, text {$value}, "replace-value")
 };
 
+
+(:
+Turn on and off queueing for later execution
+:)
+declare function mem-op:copy($node-to-copy as node()) as empty-sequence()
+{
+	mem-op:queue(),
+	map:put($queue,'copy',$node-to-copy)
+};
+
 (:
 Turn on and off queueing for later execution
 :)
 declare function mem-op:queue() as empty-sequence()
 {
-	xdmp:set($queued,not($queued))
+	xdmp:set($queued,fn:true())
+};
+
+(:
+Turn on and off queueing for later execution
+:)
+declare function mem-op:queue-pause() as empty-sequence()
+{
+	xdmp:set($queued,fn:false())
 };
 
 (:
@@ -173,7 +191,7 @@ declare function mem-op:execute() as node()?
 		map:get($queue,'operation')
 	),
 	map:clear($queue),
-	mem-op:queue()
+	mem-op:queue-pause()
 };
 
 (: Begin private functions! :)
@@ -204,7 +222,9 @@ declare private function mem-op:queue(
 		map:put($queue,'nodes-to-modify',
 			(		
 				$nodes-to-modify,
-				map:get($queue,'nodes-to-modify')
+				if (exists(map:get($queue,'copy')))
+				then map:get($queue,'nodes-to-modify') intersect map:get($queue,'copy')/descendant-or-self::node()
+				else map:get($queue,'nodes-to-modify')
 			)
 		),
 		map:put($queue,'modifier-nodes',
@@ -710,7 +730,7 @@ declare private function mem-op:process-ancestors(
 	$result as node()*
 ) as node()*
 {
-    if ($current-position gt $ancestor-size)
+    if ($current-position gt $ancestor-size or ($queued and $last-ancestor is map:get($queue,'copy')))
 	then ($result)
 	else 
 		mem-op:process-ancestors(

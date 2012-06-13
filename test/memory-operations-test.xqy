@@ -177,3 +177,19 @@ as item()*
 			for $p in $new-xml/body/div/p
 			return assert:equal(fn:string($p/@data-info), "This is also awesome!"))
 };
+
+declare function copy()
+as item()*
+{
+  let $test-xml := document { $test-xml }/html
+  let $new-xml := (
+				mem:copy($test-xml),
+				mem:replace($test-xml/head/title,element title {"This is so awesome!"}),
+				mem:insert-child($test-xml/body/div/p,attribute data-info {"This is also awesome!"}),
+				mem:execute()	
+				)
+  return (assert:equal($new-xml instance of element(html), fn:true()),
+			assert:equal(fn:string($new-xml/head/title), "This is so awesome!"),
+			for $p in $new-xml/body/div/p
+			return assert:equal(fn:string($p/@data-info), "This is also awesome!"))
+};
