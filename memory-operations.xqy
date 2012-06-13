@@ -510,13 +510,13 @@ declare private function mem-op:process-subtree(
 			then
 				element{ node-name($node-to-modify) }
 				{
-					for $new-node in $new-nodes
+					let $attributes-to-insert := $new-nodes[self::attribute()]
 					return
-						typeswitch ($new-node)
-						case attribute() return
-							( if ($operation eq "insert-child-first") then ($new-node, $node-to-modify/@*) else ($node-to-modify/@*, $new-node), $node-to-modify/node() )
-						default return
-							( $node-to-modify/@*, if ($operation eq "insert-child-first") then ($new-node, $node-to-modify/node()) else ($node-to-modify/node(), $new-node) )
+						if ($operation eq "insert-child-first")
+						then 
+							($attributes-to-insert, $node-to-modify/@*, $new-nodes except $attributes-to-insert, $node-to-modify/node())
+						else 
+							($node-to-modify/@*, $attributes-to-insert, $node-to-modify/node(), $new-nodes except $attributes-to-insert)
 				}
 			else if ($operation eq "insert-after")
 			then
