@@ -120,6 +120,18 @@ as item()*
 			return assert:equal(fn:string($c), 'this new comment'))
 };
 
+declare function replace-item-values()
+as item()*
+{
+   let $new-xml := mem:replace-value(
+						$test-xml//comment(),
+						"this new comment"
+					)
+	return (assert:equal(fn:count($new-xml//comment()), fn:count($test-xml//comment())),
+			for $c in $new-xml//comment()
+			return assert:equal(fn:string($c), 'this new comment'))
+};
+
 declare function replace-attributes()
 as item()*
 {
@@ -132,13 +144,35 @@ as item()*
 			return assert:equal(fn:string($c), 'new-class'))
 };
 
+declare function replace-value-attributes()
+as item()*
+{
+   let $new-xml := mem:replace-value(
+						$test-xml//p/@class,
+						"new-class"
+					)
+	return (assert:equal(fn:count($new-xml//p/@class), fn:count($test-xml//p/@class)),
+			for $c in $new-xml//p/@class
+			return assert:equal(fn:string($c), 'new-class'))
+};
+
+declare function rename()
+as item()*
+{
+  let $new-xml-blocks := mem:rename($test-xml//p,fn:QName("","block"))/body/div/block
+  return (for $p at $pos in $test-xml/body/div/p
+		  return assert:equal($p/(@*|node()), $new-xml-blocks[$pos]/(@*|node())))
+};
+
 declare function advanced-operation()
 as item()*
 {
-  let $start-mod-qname := fn:QName("","start-modifiers"),
-      $end-mod-qname := fn:QName("","end-modifiers"), 
-      $new-xml := mem:advanced-operation(("replace",$test-xml/head/title,$start-mod-qname,element title {"This is so awesome!"},$end-mod-qname,
-                                      "insert-child",$test-xml/body/div/p,$start-mod-qname,attribute data-info {"This is also awesome!"},$end-mod-qname))
+  let $new-xml := (
+				mem:queue(),
+				mem:replace($test-xml/head/title,element title {"This is so awesome!"}),
+				mem:insert-child($test-xml/body/div/p,attribute data-info {"This is also awesome!"}),
+				mem:execute()	
+				)
   return (assert:equal(fn:string($new-xml/head/title), "This is so awesome!"),
 			for $p in $new-xml/body/div/p
 			return assert:equal(fn:string($p/@data-info), "This is also awesome!"))

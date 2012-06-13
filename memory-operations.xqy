@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.3.3
+@version 0.4.0
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions.
 :)
@@ -23,48 +23,8 @@ declare default function namespace "http://www.w3.org/2005/xpath-functions";
 
 declare option xdmp:mapping "true";
 
-declare variable $start-mod-qname := QName("","start-modifiers");
-declare variable $end-mod-qname := QName("","end-modifiers");
-
-(:
-This will accept a seqeunce matching the following pattern
-($operation as xs:string,$nodes-to-modify as node()*, fn:QName("","start-modifiers"),$modifier-nodes as node()*, fn:QName("","end-modifiers")
-This allows for the processing of multiple expressions at the same time.
-Available operations are "replace","insert-child", "insert-child-first","insert-before","insert-after"
-To delete, just replace with no modifier nodes
-:)
-
-declare function mem-op:advanced-operation(
-    $operation-expression as item()*
-) as node()?
-{
-	let $start-modifier-indexes := index-of($operation-expression,$start-mod-qname),
-		$end-modifier-indexes := index-of($operation-expression,$end-mod-qname),
-		$formatted-items := for $op at $pos in $operation-expression
-							where $op instance of xs:string
-							return
-								let $cur-modifiers-start := ($start-modifier-indexes[. gt $pos])[1],
-									$cur-modifiers-end := ($end-modifier-indexes[. gt $pos])[1],
-									$modifier-nodes := subsequence($operation-expression, $cur-modifiers-start + 1, $cur-modifiers-end - $cur-modifiers-start - 1),
-									$modifier-attributes := $modifier-nodes[self::attribute()],
-									$modified-nodes := subsequence($operation-expression,$pos + 1, $cur-modifiers-start - $pos - 1),
-									$modified-node-ids := for $mn in $modified-nodes return element mem-op:id {mem-op:generate-id($mn)}
-								return (
-									element mem-op:operation {
-										attribute operation {$op},
-										$modified-node-ids
-									},
-									$modified-nodes,
-									element mem-op:modifier-nodes {
-										$modifier-attributes,
-										$modified-node-ids,
-										$modifier-nodes except $modifier-attributes
-									}
-								),
-		$operation-nodes := $formatted-items[self::element(mem-op:operation)],
-		$modifier-nodes := $formatted-items[self::element(mem-op:modifier-nodes)]
-	return mem-op:process($formatted-items except ($operation-nodes,$modifier-nodes),$modifier-nodes,$operation-nodes)
-};
+declare private variable $queued as xs:boolean := fn:false();
+declare private variable $queue as map:map := map:map();
 
 (:
 Insert a child into the node
@@ -74,7 +34,11 @@ declare function mem-op:insert-child(
     $new-nodes as node()*
 ) as node()?
 {
-    mem-op:process($parent-node, $new-nodes, "insert-child")
+	if ($queued)
+	then 
+		mem-op:queue($parent-node, $new-nodes, "insert-child")
+	else
+		mem-op:process($parent-node, $new-nodes, "insert-child")
 };
 
 (:
@@ -85,7 +49,11 @@ declare function mem-op:insert-child-first(
     $new-nodes as node()*
 ) as node()?
 {
-    mem-op:process($parent-node, $new-nodes, "insert-child-first")
+	if ($queued)
+	then 
+		mem-op:queue($parent-node, $new-nodes, "insert-child-first")
+	else
+		mem-op:process($parent-node, $new-nodes, "insert-child-first")
 };
 
 (:
@@ -95,9 +63,13 @@ Insert a sibling before the node
 declare function mem-op:insert-before(
     $sibling as node()+,
     $new-nodes as node()*
-) as node()
+) as node()?
 {
-    mem-op:process($sibling, $new-nodes, "insert-before")
+	if ($queued)
+	then 
+		mem-op:queue($sibling, $new-nodes, "insert-before")
+	else
+		mem-op:process($sibling, $new-nodes, "insert-before")
 };
 
 (:
@@ -106,9 +78,13 @@ Insert a sibling after the node
 declare function mem-op:insert-after(
     $sibling as node()+,
     $new-nodes as node()*
-) as node()
+) as node()?
 {
-    mem-op:process($sibling, $new-nodes, "insert-after")
+	if ($queued)
+	then 
+		mem-op:queue($sibling, $new-nodes, "insert-after")
+	else
+		mem-op:process($sibling, $new-nodes, "insert-after")
 };
 
 (:
@@ -117,9 +93,13 @@ Replace the node
 declare function mem-op:replace(
     $replace-nodes as node()+,
     $new-nodes as node()*
-) as node()
+) as node()?
 {
-    mem-op:process($replace-nodes except $replace-nodes/descendant::node(), $new-nodes, "replace")
+	if ($queued)
+	then 
+		mem-op:queue($replace-nodes except $replace-nodes/descendant::node(), $new-nodes, "replace")
+	else
+		mem-op:process($replace-nodes except $replace-nodes/descendant::node(), $new-nodes, "replace")
 };
 
 (:
@@ -129,114 +109,113 @@ declare function mem-op:delete(
     $delete-nodes as node()+
 ) as node()?
 {
-    mem-op:process($delete-nodes except $delete-nodes/descendant::node(), (), "replace")
+	if ($queued)
+	then 
+		mem-op:queue($delete-nodes except $delete-nodes/descendant::node(), (), "replace")
+	else
+		mem-op:process($delete-nodes except $delete-nodes/descendant::node(), (), "replace")
 };
 
 (:
-New congruent opperations allow you to preform operations on multiple items at sametime.
-The new node congruent to the modifer node will used for the operation.
-
-for example you could do:
-mem-op:congruent-replace(($article/@xml:lang,$article/title),(attribute xml:lang {"deu"},element title {"Mein Neuer Titel"}))
+Rename a node
 :)
-
-(:
-Insert a child into the node
-:)
-declare function mem-op:congruent-insert-child(
-    $parent-node as element()+,
-    $new-nodes as node()*
+declare function mem-op:rename(
+    $nodes-to-rename as node()+,
+	$new-name as xs:QName
 ) as node()?
 {
-    mem-op:advanced-operation(
-		for $n at $pos in $parent-node
-		return (
-			"insert-child",
-			$n,
-			$start-mod-qname,
-			$new-nodes[$pos],
-			$end-mod-qname
-		)
-	)
+	if ($queued)
+	then 
+		mem-op:queue($nodes-to-rename, element {$new-name} {}, "rename")
+	else
+		mem-op:process($nodes-to-rename, element {$new-name} {}, "rename")
 };
 
 (:
-Insert a child into the node
+Replaces a value of an element or attribute
 :)
-declare function mem-op:congruent-insert-child-first(
-    $parent-node as element()+,
-    $new-nodes as node()*
+declare function mem-op:replace-value(
+    $nodes-to-change as node()+,
+	$value as xs:string
 ) as node()?
 {
-    mem-op:advanced-operation(
-		for $n at $pos in $parent-node
-		return (
-			"insert-child-first",
-			$n,
-			$start-mod-qname,
-			$new-nodes[$pos],
-			$end-mod-qname
-		)
-	)
+	if ($queued)
+	then 
+		mem-op:queue($nodes-to-change, text {$value}, "replace-value")
+	else
+		mem-op:process($nodes-to-change, text {$value}, "replace-value")
 };
 
 (:
-Insert a sibling before the node
+Turn on and off queueing for later execution
 :)
-
-declare function mem-op:congruent-insert-before(
-    $sibling as node()+,
-    $new-nodes as node()*
-) as node()
+declare function mem-op:queue() as empty-sequence()
 {
-    mem-op:advanced-operation(
-		for $n at $pos in $sibling
-		return (
-			"insert-before",
-			$n,
-			$start-mod-qname,
-			$new-nodes[$pos],
-			$end-mod-qname
-		)
-	)
+	xdmp:set($queued,not($queued))
 };
 
 (:
-Insert a sibling after the node
+Determines if actions are currently being queued
 :)
-declare function mem-op:congruent-insert-after(
-    $sibling as node()+,
-    $new-nodes as node()*
-) as node()
+declare function mem-op:queueing() as xs:boolean
 {
-    mem-op:advanced-operation(
-		for $n at $pos in $sibling
-		return (
-			"insert-after",
-			$n,
-			$start-mod-qname,
-			$new-nodes[$pos],
-			$end-mod-qname
-		)
-	)
+	$queued
 };
 
 (:
-Replace the node
+Queue actions for later execution
 :)
-declare function mem-op:congruent-replace(
-    $replace-nodes as node()+,
-    $new-nodes as node()*
-) as node()
+declare function mem-op:execute() as node()?
 {
-    mem-op:advanced-operation(
-		for $n at $pos in $replace-nodes
-		return (
-			"replace",
-			$n,
-			$start-mod-qname,
-			$new-nodes[$pos],
-			$end-mod-qname
+	mem-op:process(
+		map:get($queue,'nodes-to-modify') union (),
+		map:get($queue,'modifier-nodes'),
+		map:get($queue,'operation')
+	),
+	map:clear($queue),
+	mem-op:queue()
+};
+
+(: Begin private functions! :)
+
+(:
+Queue actions for later execution
+:)
+declare private function mem-op:queue(
+    $nodes-to-modify as node()+,
+    $modifier-nodes as node()*,
+    $operation as xs:string?
+) as empty-sequence()
+{
+	let $modified-node-ids as element(mem-op:id)* := 
+									for $mn in $nodes-to-modify 
+									return element mem-op:id {mem-op:generate-id($mn)},
+		$modifier-attributes as attribute()* := $modifier-nodes[self::attribute()]
+	return (
+		map:put($queue,'operation',
+			(
+				element mem-op:operation {
+					attribute operation {$operation},
+					$modified-node-ids
+				},
+				map:get($queue,'operation')
+			)
+		),
+		map:put($queue,'nodes-to-modify',
+			(		
+				$nodes-to-modify,
+				map:get($queue,'nodes-to-modify')
+			)
+		),
+		map:put($queue,'modifier-nodes',
+			(		
+				element mem-op:modifier-nodes {
+					$modifier-attributes,
+					$modified-node-ids,
+					$modifier-nodes except $modifier-attributes
+				},
+				map:get($queue,'modifier-nodes')
+			)
 		)
 	)
 };
@@ -244,7 +223,7 @@ declare function mem-op:congruent-replace(
 (:
 Determine common ancestry among nodes to modify
 :)
-declare function mem-op:process(
+declare private function mem-op:process(
     $nodes-to-modify as node()+,
     $new-nodes as node()*,
     $operation as item()*
@@ -258,7 +237,7 @@ declare function mem-op:process(
 	)
 };
 
-declare function mem-op:process(
+declare private function mem-op:process(
     $nodes-to-modify as node()+,
     $new-nodes as node()*,
     $operation as item()*,
@@ -276,7 +255,7 @@ declare function mem-op:process(
 	)
 };
 
-declare function mem-op:process(
+declare private function mem-op:process(
     $nodes-to-modify as node()+,
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -297,7 +276,7 @@ declare function mem-op:process(
 	)
 };
 
-declare function mem-op:process(
+declare private function mem-op:process(
     $nodes-to-modify as node()+,
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -320,7 +299,7 @@ declare function mem-op:process(
 	)
 };
 
-declare function mem-op:process(
+declare private function mem-op:process(
     $nodes-to-modify as node()+,
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -354,7 +333,7 @@ declare function mem-op:process(
 	)
 };
 
-declare function mem-op:process(
+declare private function mem-op:process(
     $nodes-to-modify as node()+,
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -453,7 +432,7 @@ declare function mem-op:process(
 		)
 };
 
-declare function mem-op:build-subtree(
+declare private function mem-op:build-subtree(
     $mod-node as node(),
     $nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -494,7 +473,7 @@ declare function mem-op:build-subtree(
 (:
 Creates a new subtree with the changes made based off of the operation.  
 :)
-declare function mem-op:process-subtree(
+declare private function mem-op:process-subtree(
     $ancestors as node()*,
 	$node-to-modify as node(),
 	$node-to-modify-id as xs:string,
@@ -516,7 +495,8 @@ declare function mem-op:process-subtree(
 							case xs:string return $operations
 							case element(mem-op:operation)* return string($operations[mem-op:id = $node-to-modify-id]/@operation)
 							default return (),
-			$new-node := 	typeswitch ($operations)
+			$new-nodes as node()* := 	
+							typeswitch ($operations)
 							case xs:string return $new-node
 							case element(mem-op:operation)* return 
 								let $modifier-nodes := $new-node[mem-op:id = $node-to-modify-id]
@@ -525,23 +505,59 @@ declare function mem-op:process-subtree(
 		return					
 			if ($operation eq "replace")
 			then
-				$new-node
+				$new-nodes
 			else if ($operation = ("insert-child","insert-child-first"))
 			then
 				element{ node-name($node-to-modify) }
 				{
-					typeswitch ($new-node)
-					case attribute() return
-						( if ($operation eq "insert-child-first") then ($new-node, $node-to-modify/@*) else ($node-to-modify/@*, $new-node), $node-to-modify/node() )
-					default return
-						( $node-to-modify/@*, if ($operation eq "insert-child-first") then ($new-node, $node-to-modify/node()) else ($node-to-modify/node(), $new-node) )
+					for $new-node in $new-nodes
+					return
+						typeswitch ($new-node)
+						case attribute() return
+							( if ($operation eq "insert-child-first") then ($new-node, $node-to-modify/@*) else ($node-to-modify/@*, $new-node), $node-to-modify/node() )
+						default return
+							( $node-to-modify/@*, if ($operation eq "insert-child-first") then ($new-node, $node-to-modify/node()) else ($node-to-modify/node(), $new-node) )
 				}
 			else if ($operation eq "insert-after")
 			then
-				($node-to-modify, $new-node)
+				($node-to-modify, $new-nodes)
 			else if ($operation eq "insert-before")
 			then
 				($new-node, $node-to-modify)
+			else if ($operation eq 'rename')
+			then
+				element{ node-name($new-nodes[1]) }
+				{
+					$node-to-modify/@*,
+					$node-to-modify/node()
+				}
+			else if ($operation eq 'replace-value')
+			then
+				typeswitch ($node-to-modify)
+				case attribute() return
+					attribute { node-name($node-to-modify) }
+					{
+						$new-nodes
+					}
+				case element() return
+					element { node-name($node-to-modify) }
+					{
+						$node-to-modify/@*,
+						$new-nodes
+					}
+				case processing-instruction() return
+					processing-instruction { node-name($node-to-modify) }
+					{
+						$new-nodes
+					}
+				case comment() return
+					comment
+					{
+						$new-nodes
+					}
+				case text() return
+					$new-nodes
+				default return ()
 			else ()	
 	)
 };
@@ -549,7 +565,7 @@ declare function mem-op:process-subtree(
 (:
 Find all of the common ancestors of a given set of nodes 
 :)
-declare function mem-op:find-ancestor-intersect(
+declare private function mem-op:find-ancestor-intersect(
     $items as node()*,
 	$current-position as xs:integer,
 	$items-size as xs:integer,
@@ -579,7 +595,7 @@ declare function mem-op:find-ancestor-intersect(
 (:
 Place newly created trees in proper order
 :)
-declare function mem-op:place-trees(
+declare private function mem-op:place-trees(
     $nodes-to-modify as node()+,
 	$current-position as xs:integer,
 	$nodes-to-modify-size as xs:integer,
@@ -603,7 +619,7 @@ declare function mem-op:place-trees(
 		)
 };
 
-declare function mem-op:place-trees(
+declare private function mem-op:place-trees(
     $nodes-to-modify as node()+,
 	$current-position as xs:integer,
 	$nodes-to-modify-size as xs:integer,
@@ -627,7 +643,7 @@ declare function mem-op:place-trees(
 	)
 };
 
-declare function mem-op:place-trees(
+declare private function mem-op:place-trees(
     $nodes-to-modify as node()+,
 	$current-position as xs:integer,
 	$nodes-to-modify-size as xs:integer,
@@ -653,7 +669,7 @@ declare function mem-op:place-trees(
 	)
 };
 
-declare function mem-op:place-trees(
+declare private function mem-op:place-trees(
     $nodes-to-modify as node()+,
 	$current-position as xs:integer,
 	$nodes-to-modify-size as xs:integer,
@@ -682,7 +698,7 @@ declare function mem-op:place-trees(
 (:
 Recursively go up the tree to build new XML
 :)
-declare function mem-op:process-ancestors(
+declare private function mem-op:process-ancestors(
     $ancestors as node()*,
 	$last-ancestor as node()?,
 	$current-position as xs:integer,
@@ -711,7 +727,7 @@ declare function mem-op:process-ancestors(
 		)
 };
 
-declare function mem-op:process-ancestors(
+declare private function mem-op:process-ancestors(
     $ancestors as node()*,
 	$last-ancestor as node()?,
 	$current-position as xs:integer,
@@ -772,8 +788,6 @@ declare function mem-op:process-ancestors(
 	)	
 };
 
-declare function mem-op:generate-id($node as node()) {
+declare private function mem-op:generate-id($node as node()) {
 	generate-id($node)
-	(: Use the following line of code instead of the previous for full XQuery 1.0 compatability. generate-id is faster, though :)
-	(: concat('/',$node/string-join(ancestor-or-self::*/(let $name := node-name(.) return concat(string($name),'[',count(./preceding-sibling::node()[node-name(.) eq $name])+1,']')), '/')) :)
 };
