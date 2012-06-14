@@ -11,9 +11,9 @@ An example of this is as follows:
  ```xquery
 (: 
 copy $c := fn:root($file)
-modifiy (replace nodes $file/title with element title {"my new title"},
+modifiy (replace nodes $c/title with element title {"my new title"},
 		insert nodes attribute new-attribute {"my new attribute"} as last into
-			$file)
+			$c)
 return $c
 =>
 :)
