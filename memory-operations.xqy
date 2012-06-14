@@ -223,7 +223,7 @@ declare private function mem-op:queue(
 			(		
 				$nodes-to-modify,
 				if (exists(map:get($queue,'copy')))
-				then map:get($queue,'nodes-to-modify') intersect map:get($queue,'copy')/descendant-or-self::node()
+				then map:get($queue,'nodes-to-modify') intersect map:get($queue,'copy')/descendant-or-self::node()/(@*|.)
 				else map:get($queue,'nodes-to-modify')
 			)
 		),
