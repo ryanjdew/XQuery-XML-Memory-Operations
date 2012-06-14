@@ -28,6 +28,7 @@ declare variable $test-xml := <html>
 							</html>;
 
 
+
 declare function insert-child-into-root-attribute()
 as item()*
 {
@@ -192,4 +193,18 @@ as item()*
 			assert:equal(fn:string($new-xml/head/title), "This is so awesome!"),
 			for $p in $new-xml/body/div/p
 			return assert:equal(fn:string($p/@data-info), "This is also awesome!"))
+};
+
+declare function multiple-operations-on-one-node()
+as item()*
+{
+  let $title := $test-xml/head/title
+  let $new-xml := (
+				mem:copy($title),
+				mem:rename($title,fn:QName("","new-title")),
+				mem:replace-value($title,"This is so awesome!"),
+				mem:execute()	
+				)
+  return (assert:equal($new-xml instance of element(new-title), fn:true()),
+			assert:equal(fn:string($new-xml), "This is so awesome!"))
 };

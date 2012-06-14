@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.4.1
+@version 0.4.2
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions.
 :)
@@ -230,6 +230,7 @@ declare private function mem-op:queue(
 		map:put($queue,'modifier-nodes',
 			(		
 				element mem-op:modifier-nodes {
+					attribute mem-op:operation {$operation},
 					$modifier-attributes,
 					$modified-node-ids,
 					$modifier-nodes except $modifier-attributes
@@ -365,7 +366,7 @@ declare private function mem-op:process(
 	$trees as element(mem-op:trees)
 ) as node()*
 {
-	if (exists($common-parent))
+	if (exists($common-parent) and not($queued and $nodes-to-modify is map:get($queue,'copy')))
 	then
 		mem-op:process-ancestors(
 			$common-ancestors,
@@ -511,74 +512,20 @@ declare private function mem-op:process-subtree(
 		$node-to-modify,
 		$ancestor-nodes-to-modify,
 		$new-node,
-		let $operation := 	typeswitch ($operations)
-							case xs:string return $operations
-							case element(mem-op:operation)* return string($operations[mem-op:id = $node-to-modify-id]/@operation)
-							default return (),
-			$new-nodes as node()* := 	
-							typeswitch ($operations)
-							case xs:string return $new-node
-							case element(mem-op:operation)* return 
-								let $modifier-nodes := $new-node[mem-op:id = $node-to-modify-id]
-								return ($modifier-nodes/attribute::node(),$modifier-nodes/node() except $modifier-nodes/mem-op:id)
-							default return ()
-		return					
-			if ($operation eq "replace")
-			then
-				$new-nodes
-			else if ($operation = ("insert-child","insert-child-first"))
-			then
-				element{ node-name($node-to-modify) }
-				{
-					let $attributes-to-insert := $new-nodes[self::attribute()]
-					return
-						if ($operation eq "insert-child-first")
-						then 
-							($attributes-to-insert, $node-to-modify/@*, $new-nodes except $attributes-to-insert, $node-to-modify/node())
-						else 
-							($node-to-modify/@*, $attributes-to-insert, $node-to-modify/node(), $new-nodes except $attributes-to-insert)
-				}
-			else if ($operation eq "insert-after")
-			then
-				($node-to-modify, $new-nodes)
-			else if ($operation eq "insert-before")
-			then
-				($new-node, $node-to-modify)
-			else if ($operation eq 'rename')
-			then
-				element{ node-name($new-nodes[1]) }
-				{
-					$node-to-modify/@*,
-					$node-to-modify/node()
-				}
-			else if ($operation eq 'replace-value')
-			then
-				typeswitch ($node-to-modify)
-				case attribute() return
-					attribute { node-name($node-to-modify) }
-					{
-						$new-nodes
+		mem-op:build-new-xml(
+			$node-to-modify, 
+			typeswitch($operations)
+			case xs:string return $operations
+			default return $operations[mem-op:id = $node-to-modify-id]/@operation/fn:string(.), 
+			typeswitch($new-node)
+			case element(mem-op:modifier-nodes)* return 
+				$new-node[mem-op:id = $node-to-modify-id]
+			default return 
+					element mem-op:modifier-nodes {
+						attribute mem-op:operation {$operations},
+						$new-node
 					}
-				case element() return
-					element { node-name($node-to-modify) }
-					{
-						$node-to-modify/@*,
-						$new-nodes
-					}
-				case processing-instruction() return
-					processing-instruction { node-name($node-to-modify) }
-					{
-						$new-nodes
-					}
-				case comment() return
-					comment
-					{
-						$new-nodes
-					}
-				case text() return
-					$new-nodes
-				default return ()
-			else ()	
+		)
 	)
 };
 
@@ -810,4 +757,76 @@ declare private function mem-op:process-ancestors(
 
 declare private function mem-op:generate-id($node as node()) {
 	generate-id($node)
+};
+
+declare private function mem-op:build-new-xml($node as node(), $operations as xs:string*, $modifier-nodes as element(mem-op:modifier-nodes)*) {
+	if (empty($operations))
+	then $node
+	else 
+		mem-op:build-new-xml(
+			let $operation as xs:string := 	$operations[1],
+				$new-nodes as node()* := 
+								let $modifier-nodes := $modifier-nodes[@mem-op:operation eq $operation]
+								return ($modifier-nodes/attribute::node() except $modifier-nodes/@mem-op:operation,
+										$modifier-nodes/node() except $modifier-nodes/mem-op:id)
+			return					
+				if ($operation eq "replace")
+				then
+					$new-nodes
+				else if ($operation = ("insert-child","insert-child-first"))
+				then
+					element{ node-name($node) }
+					{
+						let $attributes-to-insert := $new-nodes[self::attribute()]
+						return
+							if ($operation eq "insert-child-first")
+							then 
+								($attributes-to-insert, $node/@*, $new-nodes except $attributes-to-insert, $node/node())
+							else 
+								($node/@*, $attributes-to-insert, $node/node(), $new-nodes except $attributes-to-insert)
+					}
+				else if ($operation eq "insert-after")
+				then
+					($node, $new-nodes)
+				else if ($operation eq "insert-before")
+				then
+					($new-nodes, $node)
+				else if ($operation eq 'rename')
+				then
+					element{ node-name(($new-nodes[self::element()])[1]) }
+					{
+						$node/@*,
+						$node/node()
+					}
+				else if ($operation eq 'replace-value')
+				then
+					typeswitch ($node)
+					case attribute() return
+						attribute { node-name($node) }
+						{
+							$new-nodes
+						}
+					case element() return
+						element { node-name($node) }
+						{
+							$node/@*,
+							$new-nodes
+						}
+					case processing-instruction() return
+						processing-instruction { node-name($node) }
+						{
+							$new-nodes
+						}
+					case comment() return
+						comment
+						{
+							$new-nodes
+						}
+					case text() return
+						$new-nodes
+					default return ()
+				else (),
+			subsequence($operations, 2),
+			$modifier-nodes
+		)
 };
