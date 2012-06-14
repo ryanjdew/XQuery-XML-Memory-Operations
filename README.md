@@ -3,14 +3,48 @@ This module is created to provide an optimized way to perform operations on XML 
 
 The goal is to provide a way to bring the functionality of the XQuery Update Facility 1.0 (http://www.w3.org/TR/xquery-update-10/) to MarkLogic.
 
-## Advanced Transaction
+## Advanced Transform Statements
+Note: Currently advanced transform statements *cannot* be nested inside eachother.
+
 By calling mem:queue the following calls to mem operations are stored and not actually executed until mem:execute() is called. This allows the document to be rebuilt only once and increases performance.
 An example of this is as follows:
  ```xquery
+(: 
+copy $c := fn:root($file)
+modifiy (replace nodes $file/title with element title {"my new title"},
+		insert nodes attribute new-attribute {"my new attribute"} as last into
+			$file)
+return $c
+=>
+:)
 (mem:queue(),
 mem:replace($file/title, element title {"my new title"}),
 mem:insert-child($file, attribute new-attribute {"my new attribute"}),
 mem:execute())
+```
+
+By using mem:copy and passing in a node, you indicating what the new root should be.
+```xquery
+(:
+let $oldx := /a/b/x
+return
+   copy $newx := $oldx
+   modify (rename node $newx as "newx", 
+           replace value of node $newx with $newx * 2)
+   return ($oldx, $newx)
+=>
+:)
+let $oldx := /a/b/x
+return
+	($oldx,
+	mem:copy($oldx),
+	mem:rename($oldx, fn:QName("","newx")),
+	mem:replace-value($oldx, $oldx * 5),
+	mem:execute())
+(: 
+=>
+(<x>...</x>,<newx>...</newx>)
+:)
 ```
 
 ## Other Operations
