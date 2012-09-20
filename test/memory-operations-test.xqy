@@ -168,12 +168,15 @@ as item()*
 declare function advanced-operation()
 as item()*
 {
-  let $new-xml := (
-				mem:queue(),
-				mem:replace($test-xml/head/title,element title {"This is so awesome!"}),
-				mem:insert-child($test-xml/body/div/p,attribute data-info {"This is also awesome!"}),
-				mem:execute()	
+  let $new-xml := 
+				let $id := mem:copy($test-xml) 
+				return
+				(
+				mem:replace($id,$test-xml/head/title,element title {"This is so awesome!"}),
+				mem:insert-child($id,$test-xml/body/div/p,attribute data-info {"This is also awesome!"}),
+				mem:execute($id)	
 				)
+				
   return (assert:equal(fn:string($new-xml/head/title), "This is so awesome!"),
 			for $p in $new-xml/body/div/p
 			return assert:equal(fn:string($p/@data-info), "This is also awesome!"))
@@ -183,11 +186,13 @@ declare function copy()
 as item()*
 {
   let $test-xml := document { $test-xml }/html
-  let $new-xml := (
-				mem:copy($test-xml),
-				mem:replace($test-xml/head/title,element title {"This is so awesome!"}),
-				mem:insert-child($test-xml/body/div/p,attribute data-info {"This is also awesome!"}),
-				mem:execute()	
+  let $new-xml := 
+				let $id := mem:copy($test-xml) 
+				return
+				(
+				mem:replace($id,$test-xml/head/title,element title {"This is so awesome!"}),
+				mem:insert-child($id,$test-xml/body/div/p,attribute data-info {"This is also awesome!"}),
+				mem:execute($id)	
 				)
   return (assert:equal($new-xml instance of element(html), fn:true()),
 			assert:equal(fn:string($new-xml/head/title), "This is so awesome!"),
@@ -199,11 +204,13 @@ declare function multiple-operations-on-one-node()
 as item()*
 {
   let $title := $test-xml/head/title
-  let $new-xml := (
-				mem:copy($title),
-				mem:rename($title,fn:QName("","new-title")),
-				mem:replace-value($title,"This is so awesome!"),
-				mem:execute()	
+  let $new-xml := 
+				let $id := mem:copy($title) 
+				return
+				(
+				mem:rename($id,$title,fn:QName("","new-title")),
+				mem:replace-value($id,$title,"This is so awesome!"),
+				mem:execute($id)	
 				)
   return (assert:equal($new-xml instance of element(new-title), fn:true()),
 			assert:equal(fn:string($new-xml), "This is so awesome!"))
