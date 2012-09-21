@@ -26,6 +26,7 @@ declare namespace map = "http://marklogic.com/xdmp/map";
 declare option xdmp:mapping "true";
 
 declare %private variable $queue as map:map := map:map();
+declare %private variable $transform-functions as map:map := map:map();
 
 (:
 Insert a child into the node
@@ -205,6 +206,37 @@ declare function mem-op:replace-value(
 	mem-op:queue($transaction-id, $nodes-to-change, text {$value}, "replace-value")
 };
 
+(:
+Replaces with the result of the passed function
+:)
+declare function mem-op:transform(
+    $nodes-to-change as node()+,
+	$transform-function as function(node()) as node()*
+) as node()?
+{
+	(xdmp:key-from-QName((function-name($transform-function),xs:QName('_' || string(xdmp:random())))[1]) || '#' || string(function-arity($transform-function))) !
+	(
+	map:put($transform-functions,.,$transform-function),
+	mem-op:process($nodes-to-change, text {.}, "transform"),
+	map:delete($transform-functions,.)	
+	)
+};
+
+(:
+Queues the replacement of the node with the result of the passed function
+:)
+declare function mem-op:transform(
+	$transaction-id as xs:string,
+	$nodes-to-change as node()+,
+	$transform-function as function(node()) as node()*
+) as node()?
+{
+	(xdmp:key-from-QName((function-name($transform-function),xs:QName('_' || string(xdmp:random())))[1]) || '#' || string(function-arity($transform-function))) !
+	(
+	map:put(map:get($queue,$transaction-id),.,$transform-function),
+	mem-op:queue($transaction-id, $nodes-to-change, text {.}, "transform")
+	)
+};
 
 (:
 Turn on and off queueing for later execution
@@ -227,7 +259,7 @@ Queue actions for later execution
 :)
 declare function mem-op:execute($transaction-id as xs:string) as node()?
 {
-	map:get($queue[xdmp:log(.),true()],$transaction-id) !
+	map:get($queue,$transaction-id) !
 	(
 	if (exists(map:get(.,'nodes-to-modify')))
 	then
@@ -920,6 +952,11 @@ declare %private function mem-op:build-new-xml($node as node(), $operations as x
 					case text() return
 						$new-nodes
 					default return ()
+				case 'transform'
+					return 
+						if (exists($transaction-id))
+						then map:get(map:get($queue,$transaction-id),string($new-nodes))($node)
+						else map:get($transform-functions,string($new-nodes))($node)
 				default return (),
 			tail($operations),
 			$modifier-nodes
