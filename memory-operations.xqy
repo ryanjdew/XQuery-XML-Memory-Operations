@@ -1,4 +1,4 @@
-xquery version "3.0";
+xquery version "1.0-ml";
 (:~
 Copyright (c) 2012 Ryan Dew
 
@@ -15,15 +15,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 @author Ryan Dew (ryan.j.dew@gmail.com)
 @version 0.5.0-alpha
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
-				and intersect/except expressions.
+				and intersect/except expressions. Requires MarkLogic 6+.
 :)
 
 module namespace mem-op = "http://maxdewpoint.blogspot.com/memory-operations";
 declare default function namespace "http://www.w3.org/2005/xpath-functions";
 
-declare option xdmp:mapping "true";
-
 declare namespace map = "http://marklogic.com/xdmp/map";
+
+declare option xdmp:mapping "true";
 
 declare %private variable $queue as map:map := map:map();
 
@@ -209,14 +209,17 @@ declare function mem-op:replace-value(
 (:
 Turn on and off queueing for later execution
 :)
-declare function mem-op:copy($node-to-copy as node()) as empty-sequence()
+declare function mem-op:copy($node-to-copy as node()) as xs:string
 {
 	concat(
 		mem-op:generate-id($node-to-copy),
 		current-dateTime()
 	) 
 	!
-	map:put($queue,.,map:map() ! (map:put(.,'copy',$node-to-copy),.))
+	(
+		map:put($queue,.,map:map() ! (map:put(.,'copy',$node-to-copy),.)),
+		.
+	)
 };
 
 (:
@@ -224,19 +227,23 @@ Queue actions for later execution
 :)
 declare function mem-op:execute($transaction-id as xs:string) as node()?
 {
-	map:get($queue,$transaction-id) !
-	if (map:contains(.,'nodes-to-modify'))
+	map:get($queue[xdmp:log(.),true()],$transaction-id) !
+	(
+	if (exists(map:get(.,'nodes-to-modify')))
 	then
 		mem-op:process(
+			$transaction-id,
 			map:get(.,'nodes-to-modify') union (),
 			map:get(.,'modifier-nodes'),
 			map:get(.,'operation')
 		)
 	else 
-		valiadate lax {
+		validate lax {
 			map:get(.,'copy')
-		},
+		}
+	),
 	map:delete($queue,$transaction-id)
+	
 };
 
 (: Begin private functions! :)
@@ -252,6 +259,7 @@ declare %private function mem-op:queue(
 ) as empty-sequence()
 {
 	map:get($queue,$transaction-id) !
+	(
 	let $modified-node-ids as element(mem-op:id)* := 
 									for $mn in $nodes-to-modify 
 									return element mem-op:id {mem-op:generate-id($mn)},
@@ -272,7 +280,7 @@ declare %private function mem-op:queue(
 				map:get(.,'nodes-to-modify') intersect map:get(.,'copy')/descendant-or-self::node()/(@*|.)
 			)
 		),
-		map:put($queue,'modifier-nodes',
+		map:put(.,'modifier-nodes',
 			(		
 				element mem-op:modifier-nodes {
 					attribute mem-op:operation {$operation},
@@ -280,9 +288,10 @@ declare %private function mem-op:queue(
 					$modified-node-ids,
 					$modifier-nodes except $modifier-attributes
 				},
-				map:get($queue,'modifier-nodes')
+				map:get(.,'modifier-nodes')
 			)
 		)
+	)
 	)
 };
 
@@ -413,6 +422,7 @@ declare %private function mem-op:process(
 		(: create new XML trees for all the unique paths to the items to modify :)
 		element mem-op:trees {
 			mem-op:build-subtree(
+				$transaction-id,
 				($common-parent/child::node(),$common-parent/attribute::node()) intersect $nodes-to-modify/ancestor-or-self::node(),
 				$nodes-to-modify,
 				$new-nodes,
@@ -436,7 +446,7 @@ declare %private function mem-op:process(
 	$trees as element(mem-op:trees)
 ) as node()*
 {
-	if (exists($common-parent) and not($queued and $nodes-to-modify is map:get($queue,'copy')))
+	if (exists($common-parent) or (exists($transaction-id) and $nodes-to-modify is map:get(map:get($queue,$transaction-id),'copy')))
 	then
 		mem-op:process-ancestors(
 			$transaction-id,
@@ -801,6 +811,7 @@ declare %private function mem-op:process-ancestors(
 		if (some $n in $ancestor-nodes-to-modify satisfies $n is $current-ancestor)
 		then 
 			mem-op:process-subtree(
+				$transaction-id,
 				(),
 				typeswitch ($current-ancestor)
 				case element() return
@@ -863,7 +874,7 @@ declare %private function mem-op:build-new-xml($node as node(), $operations as x
 						return
 							($node/@*, $attributes-to-insert, $node/node(), $new-nodes except $attributes-to-insert)
 					}
-				case "insert-child-first")
+				case "insert-child-first"
 					return
 					element{ node-name($node) }
 					{
