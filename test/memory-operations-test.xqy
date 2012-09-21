@@ -212,6 +212,6 @@ as item()*
 				mem:replace-value($id,$title,"This is so awesome!"),
 				mem:execute($id)	
 				)
-  return (assert:equal($new-xml, fn:true()),
+  return (assert:equal($new-xml instance of element(new-title), fn:true()),
 			assert:equal(fn:string($new-xml), "This is so awesome!"))
 };
