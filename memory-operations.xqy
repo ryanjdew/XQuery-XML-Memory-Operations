@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.5.0-alpha
+@version 0.5.0
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 6+.
 :)
@@ -478,7 +478,7 @@ declare %private function mem-op:process(
 	$trees as element(mem-op:trees)
 ) as node()*
 {
-	if (exists($common-parent) or (exists($transaction-id) and $nodes-to-modify is map:get(map:get($queue,$transaction-id),'copy')))
+	if (exists($common-parent) and not(exists($transaction-id) and $nodes-to-modify is map:get(map:get($queue,$transaction-id),'copy')))
 	then
 		mem-op:process-ancestors(
 			$transaction-id,
@@ -633,6 +633,7 @@ declare %private function mem-op:process-subtree(
 		$ancestor-nodes-to-modify,
 		$new-node,
 		mem-op:build-new-xml(
+			$transaction-id,
 			$node-to-modify, 
 			typeswitch($operations)
 			case xs:string return $operations
@@ -884,11 +885,12 @@ declare %private function mem-op:generate-id($node as node()) {
 	generate-id($node)
 };
 
-declare %private function mem-op:build-new-xml($node as node(), $operations as xs:string*, $modifier-nodes as element(mem-op:modifier-nodes)*) {
+declare %private function mem-op:build-new-xml($transaction-id as xs:string?, $node as node(), $operations as xs:string*, $modifier-nodes as element(mem-op:modifier-nodes)*) {
 	if (empty($operations))
 	then $node
 	else 
 		mem-op:build-new-xml(
+			$transaction-id,
 			let $operation as xs:string := 	head($operations),
 				$new-nodes as node()* := 
 								let $modifier-nodes := $modifier-nodes[@mem-op:operation eq $operation]

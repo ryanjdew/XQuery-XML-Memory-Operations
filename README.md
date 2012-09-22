@@ -6,8 +6,11 @@ The goal is to provide a way to bring the functionality of the XQuery Update Fac
 ## Advanced Transform Statements
 Note: Currently advanced transform statements *cannot* be nested inside eachother.
 
-By calling mem:queue the following calls to mem operations are stored and not actually executed until mem:execute() is called. This allows the document to be rebuilt only once and increases performance.
-An example of this is as follows:
+By calling mem:copy($node as node()) as xs:string the following calls to mem operations are stored and not actually executed until mem:execute($transaction-id as xs:string) is called. This allows the document to be rebuilt only once and increases performance.
+
+You can just perform a copy and execute that will provide a copy of the node free from ancestors.
+
+Examples of this is as follows:
  ```xquery
 (: 
 copy $c := fn:root($file)
@@ -17,10 +20,11 @@ modifiy (replace nodes $c/title with element title {"my new title"},
 return $c
 =>
 :)
-(mem:queue(),
-mem:replace($file/title, element title {"my new title"}),
-mem:insert-child($file, attribute new-attribute {"my new attribute"}),
-mem:execute())
+mem:copy(fn:root($file)) !
+( 
+mem:replace(.,$file/title, element title {"my new title"}),
+mem:insert-child(.,$file, attribute new-attribute {"my new attribute"}),
+mem:execute(.))
 ```
 
 By using mem:copy and passing in a node, you indicating what the new root should be.
@@ -37,10 +41,13 @@ return
 let $oldx := /a/b/x
 return
 	($oldx,
-	mem:copy($oldx),
-	mem:rename($oldx, fn:QName("","newx")),
-	mem:replace-value($oldx, $oldx * 5),
-	mem:execute())
+	mem:copy($oldx) ! 
+	(
+	mem:rename(.,$oldx, fn:QName("","newx")),
+	mem:replace-value(.,$oldx, $oldx * 5),
+	mem:execute(.)
+	)
+	)
 (: 
 =>
 (<x>...</x>,<newx>...</newx>)
@@ -61,6 +68,8 @@ mem:rename($file//block, fn:QName('http://www.w3.org/1999/xhtml','p')),
 (: See http://www.w3.org/TR/xquery-update-10/#id-replacing-node :)
 mem:replace($file/title, element title {"my new title"} ),
 (: See http://www.w3.org/TR/xquery-update-10/#id-replacing-node-value :)
-mem:replace-value($file/title, "my new title" )
+mem:replace-value($file/title, "my new title" ),
+(: Transform by using a function reference :)
+mem:transform($title,function($node as node()) as node()* {element new-title {"This is so awesome!"}})
 ```
 

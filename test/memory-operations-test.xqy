@@ -215,3 +215,30 @@ as item()*
   return (assert:equal($new-xml instance of element(new-title), fn:true()),
 			assert:equal(fn:string($new-xml), "This is so awesome!"))
 };
+
+(:The following tests must be commented out due to them breaking the current XQuery parser in XRay :)
+
+(:
+declare function transform-function-transaction()
+as item()*
+{
+  let $title := $test-xml/head/title
+  let $new-xml := 
+				let $id := mem:copy($title) 
+				return
+				(
+				mem:transform($id,$title,function($node as node()) as node()* {element new-title {"This is so awesome!"}}),
+				mem:execute($id)	
+				)
+  return (assert:equal($new-xml instance of element(new-title), fn:true()),
+			assert:equal(fn:string($new-xml), "This is so awesome!"))
+};
+
+declare function transform-function()
+as item()*
+{
+  let $title := $test-xml/head/title
+  let $new-xml :=  mem:transform($id,$title,function($node as node()) as node()* {element new-title {"This is so awesome!"}})
+  return assert:equal(fn:string($new-xml/head/new-title), "This is so awesome!")
+};
+:)
