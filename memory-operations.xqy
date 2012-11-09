@@ -345,7 +345,7 @@ declare private function mem-op:process(
 		element mem-op:trees {
 			mem-op:build-subtree(
 				($common-parent/child::node(),$common-parent/attribute::node()) intersect $nodes-to-modify/ancestor-or-self::node(),
-				$nodes-to-modify,
+				$all-nodes-to-modify union $nodes-to-modify,
 				$new-nodes,
 				$operation,
 				$all-ancestors
@@ -375,7 +375,7 @@ declare private function mem-op:process(
 			count($common-ancestors),
 			$operation,
 			$all-nodes-to-modify,
-			$nodes-to-modify,
+			($nodes-to-modify union $all-nodes-to-modify) intersect $common-ancestors,
 			$new-nodes,
 			(: merge trees in at the first common ancestor :)
 			if (some $n in ($nodes-to-modify union $all-nodes-to-modify) satisfies $n is $common-parent)
