@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.5.0
+@version 0.5.1
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 6+.
 :)
@@ -456,7 +456,7 @@ declare %private function mem-op:process(
 			mem-op:build-subtree(
 				$transaction-id,
 				($common-parent/child::node(),$common-parent/attribute::node()) intersect $nodes-to-modify/ancestor-or-self::node(),
-				$nodes-to-modify,
+				$all-nodes-to-modify union $nodes-to-modify,
 				$new-nodes,
 				$operation,
 				$all-ancestors
@@ -488,7 +488,7 @@ declare %private function mem-op:process(
 			count($common-ancestors),
 			$operation,
 			$all-nodes-to-modify,
-			$nodes-to-modify,
+			($nodes-to-modify union $all-nodes-to-modify) intersect $common-ancestors,
 			$new-nodes,
 			(: merge trees in at the first common ancestor :)
 			if (some $n in ($nodes-to-modify union $all-nodes-to-modify) satisfies $n is $common-parent)
@@ -587,8 +587,8 @@ declare %private function mem-op:build-subtree(
 				then 
 					mem-op:process-subtree(
 						$transaction-id,
-						$nodes-to-mod/ancestor::node() except $all-ancestors,
-						$nodes-to-mod,
+						$mod-node/ancestor::node() except $all-ancestors,
+						$mod-node,
 						$mod-node-id,
 						$new-nodes,
 						$operations,
