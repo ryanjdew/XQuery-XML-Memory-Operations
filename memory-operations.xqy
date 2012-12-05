@@ -1,4 +1,4 @@
-xquery version "1.0-ml";
+xquery version "1.0";
 (:~
 Copyright (c) 2012 Ryan Dew
 
@@ -21,10 +21,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 module namespace mem-op = "http://maxdewpoint.blogspot.com/memory-operations";
 declare default function namespace "http://www.w3.org/2005/xpath-functions";
 
+declare namespace xdmp = "http://marklogic.com/xdmp";
+declare namespace map = "http://marklogic.com/xdmp/map";
+
 declare option xdmp:mapping "true";
 
-declare private variable $queued as xs:boolean := fn:false();
-declare private variable $queue as map:map := map:map();
+declare variable $queued as xs:boolean := fn:false();
+declare variable $queue as map:map := map:map();
 
 (:
 Insert a child into the node
@@ -199,7 +202,7 @@ declare function mem-op:execute() as node()?
 (:
 Queue actions for later execution
 :)
-declare private function mem-op:queue(
+declare function mem-op:queue(
     $nodes-to-modify as node()+,
     $modifier-nodes as node()*,
     $operation as xs:string?
@@ -244,7 +247,7 @@ declare private function mem-op:queue(
 (:
 Determine common ancestry among nodes to modify
 :)
-declare private function mem-op:process(
+declare function mem-op:process(
     $nodes-to-modify as node()+,
     $new-nodes as node()*,
     $operation as item()*
@@ -258,7 +261,7 @@ declare private function mem-op:process(
 	)
 };
 
-declare private function mem-op:process(
+declare function mem-op:process(
     $nodes-to-modify as node()+,
     $new-nodes as node()*,
     $operation as item()*,
@@ -276,7 +279,7 @@ declare private function mem-op:process(
 	)
 };
 
-declare private function mem-op:process(
+declare function mem-op:process(
     $nodes-to-modify as node()+,
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -297,7 +300,7 @@ declare private function mem-op:process(
 	)
 };
 
-declare private function mem-op:process(
+declare function mem-op:process(
     $nodes-to-modify as node()+,
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -320,7 +323,7 @@ declare private function mem-op:process(
 	)
 };
 
-declare private function mem-op:process(
+declare function mem-op:process(
     $nodes-to-modify as node()+,
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -354,7 +357,7 @@ declare private function mem-op:process(
 	)
 };
 
-declare private function mem-op:process(
+declare function mem-op:process(
     $nodes-to-modify as node()+,
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -453,7 +456,7 @@ declare private function mem-op:process(
 		)
 };
 
-declare private function mem-op:build-subtree(
+declare function mem-op:build-subtree(
     $mod-node as node(),
     $nodes-to-modify as node()*,
     $new-nodes as node()*,
@@ -494,7 +497,7 @@ declare private function mem-op:build-subtree(
 (:
 Creates a new subtree with the changes made based off of the operation.  
 :)
-declare private function mem-op:process-subtree(
+declare function mem-op:process-subtree(
     $ancestors as node()*,
 	$node-to-modify as node(),
 	$node-to-modify-id as xs:string,
@@ -532,7 +535,7 @@ declare private function mem-op:process-subtree(
 (:
 Find all of the common ancestors of a given set of nodes 
 :)
-declare private function mem-op:find-ancestor-intersect(
+declare function mem-op:find-ancestor-intersect(
     $items as node()*,
 	$current-position as xs:integer,
 	$items-size as xs:integer,
@@ -562,7 +565,7 @@ declare private function mem-op:find-ancestor-intersect(
 (:
 Place newly created trees in proper order
 :)
-declare private function mem-op:place-trees(
+declare function mem-op:place-trees(
     $nodes-to-modify as node()+,
 	$current-position as xs:integer,
 	$nodes-to-modify-size as xs:integer,
@@ -586,7 +589,7 @@ declare private function mem-op:place-trees(
 		)
 };
 
-declare private function mem-op:place-trees(
+declare function mem-op:place-trees(
     $nodes-to-modify as node()+,
 	$current-position as xs:integer,
 	$nodes-to-modify-size as xs:integer,
@@ -610,7 +613,7 @@ declare private function mem-op:place-trees(
 	)
 };
 
-declare private function mem-op:place-trees(
+declare function mem-op:place-trees(
     $nodes-to-modify as node()+,
 	$current-position as xs:integer,
 	$nodes-to-modify-size as xs:integer,
@@ -636,7 +639,7 @@ declare private function mem-op:place-trees(
 	)
 };
 
-declare private function mem-op:place-trees(
+declare function mem-op:place-trees(
     $nodes-to-modify as node()+,
 	$current-position as xs:integer,
 	$nodes-to-modify-size as xs:integer,
@@ -665,7 +668,7 @@ declare private function mem-op:place-trees(
 (:
 Recursively go up the tree to build new XML
 :)
-declare private function mem-op:process-ancestors(
+declare function mem-op:process-ancestors(
     $ancestors as node()*,
 	$last-ancestor as node()?,
 	$current-position as xs:integer,
@@ -694,7 +697,7 @@ declare private function mem-op:process-ancestors(
 		)
 };
 
-declare private function mem-op:process-ancestors(
+declare function mem-op:process-ancestors(
     $ancestors as node()*,
 	$last-ancestor as node()?,
 	$current-position as xs:integer,
@@ -755,11 +758,11 @@ declare private function mem-op:process-ancestors(
 	)	
 };
 
-declare private function mem-op:generate-id($node as node()) {
+declare function mem-op:generate-id($node as node()) {
 	generate-id($node)
 };
 
-declare private function mem-op:build-new-xml($node as node(), $operations as xs:string*, $modifier-nodes as element(mem-op:modifier-nodes)*) {
+declare function mem-op:build-new-xml($node as node(), $operations as xs:string*, $modifier-nodes as element(mem-op:modifier-nodes)*) {
 	if (empty($operations))
 	then $node
 	else 
