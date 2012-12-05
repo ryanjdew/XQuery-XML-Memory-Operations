@@ -1,4 +1,4 @@
-xquery version "1.0-ml";
+xquery version "3.0";
 (:~
 Copyright (c) 2012 Ryan Dew
 
@@ -21,6 +21,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 module namespace mem-op = "http://maxdewpoint.blogspot.com/memory-operations";
 declare default function namespace "http://www.w3.org/2005/xpath-functions";
 
+declare namespace xdmp = "http://marklogic.com/xdmp";
 declare namespace map = "http://marklogic.com/xdmp/map";
 
 declare option xdmp:mapping "true";
