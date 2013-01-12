@@ -1,4 +1,4 @@
-xquery version "1.0";
+xquery version "1.0-ml";
 (:~
 Copyright (c) 2012 Ryan Dew
 
@@ -25,6 +25,7 @@ declare namespace xdmp = "http://marklogic.com/xdmp";
 declare namespace map = "http://marklogic.com/xdmp/map";
 
 declare option xdmp:mapping "true";
+declare option xdmp:copy-on-validate "true";
 
 declare variable $queued as xs:boolean := fn:false();
 declare variable $queue as map:map := map:map();
