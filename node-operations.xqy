@@ -24,7 +24,7 @@ declare default function namespace "http://www.w3.org/2005/xpath-functions";
 
 declare function node-op:innermost($nodes as node()*) {
 	node-op:function-select((
-		function-lookup(QName('http://www.w3.org/2005/xpath-functions','innermost')),
+		function-lookup(QName('http://www.w3.org/2005/xpath-functions','innermost'), 1),
 		function ($nodes as node()*) {
 			$nodes except $nodes/ancestor::node()
 		}
@@ -33,7 +33,7 @@ declare function node-op:innermost($nodes as node()*) {
 
 declare function node-op:outermost($nodes as node()*) {
 	node-op:function-select((
-		function-lookup(QName('http://www.w3.org/2005/xpath-functions','outermost')),
+		function-lookup(QName('http://www.w3.org/2005/xpath-functions','outermost'), 1),
 		function ($nodes as node()*) {
 			$nodes except ($nodes/descendant::node(),$nodes/descendant-or-self::node()/attribute::node())
 		}
@@ -56,28 +56,28 @@ declare function node-op:inbetween-inclusive-end($nodes as node()*, $start as no
 	node-op:inbetween($nodes, $start, $end, ('end'))
 };
 
-declare function node-op:inbetween($nodes as node()*, $start as node()?, $end as node()?, $inclusion as xs:string*) {
+declare %private function node-op:inbetween($nodes as node()*, $start as node()?, $end as node()?, $inclusion as xs:string*) {
 	(
-	if ($inclusion = 'start')
-	then $nodes intersect $start
-	else ()
-	|
-	if (exists($start) and exists($end))
-	then $nodes[. >> $start and . << $end]
-	else if (exists($start))
-	then $nodes[. >> $start]
-	else if (exists($end))
-	then $nodes[. << $end]
-	else ()
-	|
-	if ($inclusion = 'end')
-	then $nodes intersect $end
-	else ()
+	   if ($inclusion = 'start')
+	   then $nodes intersect $start
+	   else ()
+	) union (
+	   if (exists($start) and exists($end))
+	   then $nodes[. >> $start and . << $end]
+	   else if (exists($start))
+	   then $nodes[. >> $start]
+	   else if (exists($end))
+	   then $nodes[. << $end]
+	   else ()
+	) union (
+	   if ($inclusion = 'end')
+	   then $nodes intersect $end
+	   else ()
 	)
 };
 
 
 
-declare function node-op:function-select($functions as function(*)+) as function(*) {
+declare %private function node-op:function-select($functions as function(*)+) as function(*) {
 	$functions[1]
-}
+};
