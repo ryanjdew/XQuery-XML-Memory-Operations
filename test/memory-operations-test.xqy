@@ -82,9 +82,14 @@ as item()*
 						$test-xml/body/div/p[@class eq "p3"],
 						element p { attribute class {"testing"}}
 					)
-	for $p in $new-xml/div/p[@class eq "p3"]
-	return 
-		assert:equal(fn:string($p/preceding-sibling::node()[fn:last()]/@class), 'testing')	
+	return (
+	   assert:equal(fn:count($new-xml/body/div/p[@class eq "p3"]), 2),
+	   for $p at $pos in $new-xml/body/div/p[@class eq "p3"]
+	   return (
+		  assert:equal(fn:string(($p/preceding-sibling::node())[fn:last()]/@class), 'testing'),
+		  assert:equal(fn:string($p/parent::node()/@id), fn:concat('div',$pos))
+	   )
+	)
 };
 
 declare function insert-after()
@@ -94,9 +99,14 @@ as item()*
 						$test-xml/body/div/p[@class eq "p3"],
 						element p { attribute class {"testing"}}
 					)
-	for $p in $new-xml/body/div/p[@class eq "p3"]
-	return 
-		assert:equal(fn:string($p/following-sibling::node()[1]/@class), 'testing')	
+	return (
+	   assert:equal(fn:count($new-xml/body/div/p[@class eq "p3"]), 2),
+	   for $p at $pos in $new-xml/body/div/p[@class eq "p3"]
+	   return (
+		  assert:equal(fn:string($p/following-sibling::node()[1]/@class), 'testing'),
+		  assert:equal(fn:string($p/parent::node()/@id), fn:concat('div',$pos))
+	   )
+	)
 };
 
 declare function remove-items()

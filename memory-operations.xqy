@@ -493,14 +493,6 @@ declare %private function mem-op:process(
 			$all-nodes-to-modify,
 			($nodes-to-modify union $all-nodes-to-modify) intersect $common-ancestors,
 			$new-nodes,
-			(: place the new xml in the proper order around its siblings :)
-			let $placed-trees := 
-			     		mem-op:place-trees(
-							$nodes-to-modify, 
-							($common-parent/attribute(),$common-parent/node()) except $nodes-to-modify/ancestor-or-self::node(),
-							$trees
-						)
-			return
 			(: merge trees in at the first common ancestor :)
 			if (some $n in ($nodes-to-modify union $all-nodes-to-modify) satisfies $n is $common-parent)
 			then
@@ -510,11 +502,19 @@ declare %private function mem-op:process(
 					typeswitch ($common-parent)
 					case element() return
 						element {node-name($common-parent)} {
-							$placed-trees
+						  mem-op:place-trees(
+							$nodes-to-modify, 
+							$common-parent/(@*|node()) except $nodes-to-modify/ancestor-or-self::node(),
+							$trees
+						  )
 						}
 					case document-node() return
 						document {
-							$placed-trees
+						  mem-op:place-trees(
+							$nodes-to-modify, 
+							$common-parent/(@*|node()) except $nodes-to-modify/ancestor-or-self::node(),
+							$trees
+						  )
 						}
 					default return (),
 					mem-op:generate-id($common-parent),
@@ -526,11 +526,19 @@ declare %private function mem-op:process(
 				typeswitch ($common-parent)
 				case element() return
 					element {node-name($common-parent)} {
-						$placed-trees
+						  mem-op:place-trees(
+							$nodes-to-modify, 
+							$common-parent/(@*|node()) except $nodes-to-modify/ancestor-or-self::node(),
+							$trees
+						  )
 					}
 				case document-node() return
 					document {
-						$placed-trees
+						  mem-op:place-trees(
+							$nodes-to-modify, 
+							$common-parent/(@*|node()) except $nodes-to-modify/ancestor-or-self::node(),
+							$trees
+						  )
 					}
 				default return ()
 		)
@@ -698,7 +706,11 @@ declare %private function mem-op:place-trees(
 {
     let $previous-mod-node := ($nodes-to-modify intersect $node-to-modify/following::node())[1],
         $current-modified-id := QName("http://maxdewpoint.blogspot.com/memory-operations",fn:concat("_",mem-op:generate-id($node-to-modify)))
-    return (
+    return 
+    (
+        if ($node-to-modify is $nodes-to-modify[1])
+        then node-op:inbetween($merging-nodes,(),$node-to-modify)
+        else (),
         $result,
         $trees/*[fn:node-name(.) eq $current-modified-id]/(@*|node()),
         node-op:inbetween($merging-nodes,$node-to-modify,$previous-mod-node)
