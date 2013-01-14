@@ -396,7 +396,7 @@ declare %private function mem-op:process(
 	$end as node()?
 ) as node()*
 {
-	if ()
+	let 
 };
 
 declare %private function mem-op:build-subtree(
