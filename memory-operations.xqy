@@ -357,7 +357,9 @@ declare %private function mem-op:process(
 		$nodes-to-modify,
 		$new-nodes,
 		$operation,
-		count($nodes-to-modify)
+		if (exists($transaction-id))
+		then map:get(map:get($queue,$transaction-id),'copy')
+		else $nodes-to-modify[1]/fn:root(.)
 	)
 };
 
@@ -365,208 +367,36 @@ declare %private function mem-op:process(
 	$transaction-id as xs:string?,
     $nodes-to-modify as node()+,
     $new-nodes as node()*,
-    $operation as item()*,
-	$nodes-to-modify-size as xs:integer
+    $operations as item()*,
+	$root as node()
 ) as node()*
 {
-	mem-op:process(
-		$transaction-id,
-		$nodes-to-modify,
+	fold-right(
+		mem-op:process(
+			$transaction-id, 
+			$nodes-to-modify,
+			$node-nodes,
+			$operations,
+			$root,
+			?, 
+			?
+		),
 		(),
-		$new-nodes,
-		$operation,
-		$nodes-to-modify-size,
-		(: find common ancestors :)
-		reverse(mem-op:find-ancestor-intersect($nodes-to-modify, 1, $nodes-to-modify-size, ()))
+		$root | find-merge-points($root, $nodes-to-modify)
 	)
 };
 
 declare %private function mem-op:process(
 	$transaction-id as xs:string?,
     $nodes-to-modify as node()+,
-    $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
     $operation as item()*,
-	$nodes-to-modify-size as xs:integer,
-	$common-ancestors as node()*
+	$root as node(),
+	$start as node()?,
+	$end as node()?
 ) as node()*
 {
-	mem-op:process(
-		$transaction-id,
-		$nodes-to-modify,
-		$all-nodes-to-modify,
-		$new-nodes,
-		$operation,
-		$nodes-to-modify-size,
-		$common-ancestors,		
-		(: get the first common parent of all the items to modify :)
-		$common-ancestors[1]
-	)
-};
-
-declare %private function mem-op:process(
-	$transaction-id as xs:string?,
-    $nodes-to-modify as node()+,
-    $all-nodes-to-modify as node()*,
-    $new-nodes as node()*,
-    $operation as item()*,
-	$nodes-to-modify-size as xs:integer,
-	$common-ancestors as node()*,
-	$common-parent as node()?
-) as node()*
-{
-	mem-op:process(
-		$transaction-id,
-		$nodes-to-modify,
-		$all-nodes-to-modify,
-		$new-nodes,
-		$operation,
-		$nodes-to-modify-size,
-		$common-ancestors,
-		(: get all of the ancestors :)
-		$common-parent/ancestor-or-self::node(),
-		$common-parent
-	)
-};
-
-declare %private function mem-op:process(
-	$transaction-id as xs:string?,
-    $nodes-to-modify as node()+,
-    $all-nodes-to-modify as node()*,
-    $new-nodes as node()*,
-    $operation as item()*,
-	$nodes-to-modify-size as xs:integer,
-	$common-ancestors as node()*,
-	$all-ancestors as node()*,
-	$common-parent as node()?
-) as node()*
-{
-	mem-op:process(
-		$transaction-id,
-		$nodes-to-modify,
-		$all-nodes-to-modify,
-		$new-nodes,
-		$operation,
-		$nodes-to-modify-size,
-		$common-ancestors,
-		$all-ancestors,		
-		(: get the first common parent of all the items to modify :)
-		$common-parent,
-		(: create new XML trees for all the unique paths to the items to modify :)
-		element mem-op:trees {
-			mem-op:build-subtree(
-				$transaction-id,
-				($common-parent/child::node(),$common-parent/attribute::node()) intersect $nodes-to-modify/ancestor-or-self::node(),
-				$all-nodes-to-modify union $nodes-to-modify,
-				$new-nodes,
-				$operation,
-				$all-ancestors
-			)
-		}
-	)
-};
-
-declare %private function mem-op:process(
-	$transaction-id as xs:string?,
-    $nodes-to-modify as node()+,
-    $all-nodes-to-modify as node()*,
-    $new-nodes as node()*,
-    $operation as item()*,
-	$nodes-to-modify-size as xs:integer,
-	$common-ancestors as node()*,
-	$all-ancestors as node()*,
-	$common-parent as node()?,
-	$trees as element(mem-op:trees)
-) as node()*
-{
-	if (exists($common-parent) and not(exists($transaction-id) and $nodes-to-modify is map:get(map:get($queue,$transaction-id),'copy')))
-	then
-		mem-op:process-ancestors(
-			$transaction-id,
-			$common-ancestors,
-			$common-parent,
-			2,
-			count($common-ancestors),
-			$operation,
-			$all-nodes-to-modify,
-			($nodes-to-modify union $all-nodes-to-modify) intersect $common-ancestors,
-			$new-nodes,
-			(: merge trees in at the first common ancestor :)
-			if (some $n in ($nodes-to-modify union $all-nodes-to-modify) satisfies $n is $common-parent)
-			then
-				mem-op:process-subtree(
-					$transaction-id,
-					(),
-					typeswitch ($common-parent)
-					case element() return
-						element {node-name($common-parent)} {
-							mem-op:place-trees(
-								$nodes-to-modify, 
-								1, 
-								$nodes-to-modify-size,
-								$trees,
-								($common-parent/attribute(),$common-parent/node()) except $nodes-to-modify/ancestor-or-self::node(),
-								()
-							)
-						}
-					case document-node() return
-						document {
-							mem-op:place-trees(
-								$nodes-to-modify, 
-								1, 
-								$nodes-to-modify-size,
-								$trees, 
-								($common-parent/attribute(),$common-parent/node()) except $nodes-to-modify/ancestor-or-self::node(),
-								()
-							)
-						}
-					default return (),
-					mem-op:generate-id($common-parent),
-					$new-nodes,
-					$operation,
-					()
-				)
-			else
-				typeswitch ($common-parent)
-				case element() return
-					element {node-name($common-parent)} {
-						mem-op:place-trees(
-							$nodes-to-modify, 
-							1, 
-							$nodes-to-modify-size,
-							$trees,
-							($common-parent/attribute(),$common-parent/node()) except $nodes-to-modify/ancestor-or-self::node(),
-							()
-						)
-					}
-				case document-node() return
-					document {
-						mem-op:place-trees(
-							$nodes-to-modify, 
-							1, 
-							$nodes-to-modify-size,
-							$trees, 
-							($common-parent/attribute(),$common-parent/node()) except $nodes-to-modify/ancestor-or-self::node(),
-							()
-						)
-					}
-				default return ()
-		)
-	else if (exists($trees/*))
-	then $trees/*/node()
-	else (
-		for $node in $nodes-to-modify
-		return
-			mem-op:process-subtree(
-				$transaction-id,
-				(),
-				$node,
-				mem-op:generate-id($node),
-				$new-nodes,
-				$operation,
-				()
-			)
-		)
+	if ()
 };
 
 declare %private function mem-op:build-subtree(
@@ -964,4 +794,9 @@ declare %private function mem-op:build-new-xml($transaction-id as xs:string?, $n
 			tail($operations),
 			$modifier-nodes
 		)
+};
+
+(: Find the places where merges are necessary :)
+declare function find-merge-points($root as node(), $nodes-to-modify as node()*) {
+	$root/self-or-descendant::node()[count((node()|@*)[self-or-descendant::node() intersect $nodes-to-modify])]
 };
