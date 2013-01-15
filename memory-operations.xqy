@@ -494,6 +494,7 @@ declare %private function mem-op:process(
 			$transaction-id,
 			$common-ancestors 
 			except $common-parent,
+			$common-parent,
 			$operation,
 			$all-nodes-to-modify,
 			($nodes-to-modify union $all-nodes-to-modify) intersect $common-ancestors,
@@ -590,8 +591,8 @@ declare %private function mem-op:build-subtree(
 						$new-nodes,
 						$operations,
 						$descendant-nodes-to-mod-size,
-						(: find the ancestors that all nodes to modify have in common and reverse order for recursion up the tree :)
-						reverse(mem-op:find-ancestor-intersect($descendant-nodes-to-mod, 1, $descendant-nodes-to-mod-size, ()) except $all-ancestors)
+						(: find the ancestors that all nodes to modify have in common :)
+						mem-op:find-ancestor-intersect($descendant-nodes-to-mod, 1, $descendant-nodes-to-mod-size, ()) except $all-ancestors
 					)
 			} 
 
@@ -613,6 +614,7 @@ declare %private function mem-op:process-subtree(
 	mem-op:process-ancestors(
 		$transaction-id,
 		$ancestors, 
+		(),
 		$operations,
 		$node-to-modify,
 		$ancestor-nodes-to-modify,
@@ -717,6 +719,7 @@ Go up the tree to build new XML using a fold-left. This is used when there are n
 declare %private function mem-op:process-ancestors(
 	$transaction-id as xs:string?,
     $ancestors as node()*,
+    $last-ancestor as node()?,
 	$operations as item()*,
 	$nodes-to-modify as node()*,
 	$ancestor-nodes-to-modify as node()*,
@@ -728,6 +731,7 @@ declare %private function mem-op:process-ancestors(
         mem-op:process-ancestors(
 			$transaction-id,
 			$ancestors,
+			$last-ancestor,
 			$operations,
 			$nodes-to-modify,
 			$ancestor-nodes-to-modify,
@@ -737,13 +741,14 @@ declare %private function mem-op:process-ancestors(
 			?
 		),
 		$base,
-		$ancestors
+		reverse($ancestors)
     )
 };
 
 declare %private function mem-op:process-ancestors(
 	$transaction-id as xs:string?,
     $ancestors as node()*,
+    $last-ancestor as node()?,
 	$operations as item()*,
 	$nodes-to-modify as node()*,
 	$ancestor-nodes-to-modify as node()*,
@@ -753,15 +758,17 @@ declare %private function mem-op:process-ancestors(
 	$current-ancestor as node()
 ) as node()*
 {
-    let $last-ancestor := ($ancestors intersect $current-ancestor/following::node())[1],
+    let $last-ancestor := ($ancestors[. >> $current-ancestor],$last-ancestor)[1],
+        $preceding-siblings := $last-ancestor/preceding-sibling::node(),
+        $following-siblings := $last-ancestor/following-sibling::node(),
         $reconstructed-ancestor :=
         		typeswitch ($current-ancestor)
 				case element() return
 					element {node-name($current-ancestor)} {
 						$current-ancestor/attribute() except $nodes-to-modify,
-						$last-ancestor/preceding-sibling::node(),
+						$preceding-siblings,
 						($result,$baseline)[1],
-						$last-ancestor/following-sibling::node()
+						$following-siblings
 					}				
 				case document-node() return
 					document {
@@ -769,18 +776,18 @@ declare %private function mem-op:process-ancestors(
 					}
 				default return ()
 	return
-    if (some $n in $ancestor-nodes-to-modify satisfies $n is $current-ancestor)
+	if (some $n in $ancestor-nodes-to-modify satisfies $n is $current-ancestor)
 	then 
 			mem-op:process-subtree(
 				$transaction-id,
 				(),
-				$reconstructed-ancestor,
+				$reconstructed-ancestor[xdmp:log(.),fn:true()],
 				mem-op:generate-id($current-ancestor),
 				$new-node,
 				$operations,
 				()
 			)
-	else $reconstructed-ancestor
+	else $reconstructed-ancestor[xdmp:log(.),fn:true()]
 };
 
 (: Generate an id unique to a node in memory. Right now using fn:generate-id. :)
