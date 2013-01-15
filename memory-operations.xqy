@@ -504,14 +504,8 @@ declare %private function mem-op:process(
 							$nodes-to-modify, 
 							$common-parent/(@*|node()) except $nodes-to-modify/ancestor-or-self::node(),
 							$trees
-						  )
-			return
-			(: merge trees in at the first common ancestor :)
-			if (some $n in ($nodes-to-modify union $all-nodes-to-modify) satisfies $n is $common-parent)
-			then
-				mem-op:process-subtree(
-					$transaction-id,
-					(),
+						  ),
+				$new-common-parent :=
 					typeswitch ($common-parent)
 					case element() return
 						element {node-name($common-parent)} {
@@ -521,23 +515,22 @@ declare %private function mem-op:process(
 						document {
 						  $placed-trees
 						}
-					default return (),
+					default return ()
+			return
+			(: merge trees in at the first common ancestor :)
+			if (some $n in ($nodes-to-modify union $all-nodes-to-modify) satisfies $n is $common-parent)
+			then
+				mem-op:process-subtree(
+					$transaction-id,
+					(),
+					$new-common-parent,
 					mem-op:generate-id($common-parent),
 					$new-nodes,
 					$operation,
 					()
 				)
 			else
-				typeswitch ($common-parent)
-				case element() return
-					element {node-name($common-parent)} {
-						  $placed-trees
-					}
-				case document-node() return
-					document {
-						  $placed-trees
-					}
-				default return ()
+				$new-common-parent
 		)
 	else if (exists($trees/*))
 	then $trees/*/node()
