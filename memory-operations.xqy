@@ -332,7 +332,6 @@ declare %private function mem-op:queue(
 
 (:
 Determine common ancestry among nodes to modify
-TODO: Clean up process functions
 :)
 declare %private function mem-op:process(
     $nodes-to-modify as node()+,
@@ -349,27 +348,10 @@ declare %private function mem-op:process(
 };
 
 declare %private function mem-op:process(
-	$transaction-id as xs:string?,	
-    $nodes-to-modify as node()+,
-    $new-nodes as node()*,
-    $operation as item()*
-) as node()*
-{
-	mem-op:process(
-		$transaction-id,	
-		$nodes-to-modify,
-		$new-nodes,
-		$operation,
-		count($nodes-to-modify)
-	)
-};
-
-declare %private function mem-op:process(
 	$transaction-id as xs:string?,
     $nodes-to-modify as node()+,
     $new-nodes as node()*,
-    $operation as item()*,
-	$nodes-to-modify-size as xs:integer
+    $operation as item()*
 ) as node()*
 {
 	mem-op:process(
@@ -378,9 +360,8 @@ declare %private function mem-op:process(
 		(),
 		$new-nodes,
 		$operation,
-		$nodes-to-modify-size,
 		(: find common ancestors :)
-		mem-op:find-ancestor-intersect($nodes-to-modify, 1, $nodes-to-modify-size, ())
+		mem-op:find-ancestor-intersect($nodes-to-modify, 1, count($nodes-to-modify), ())
 		except
 		(
 		  if (exists($transaction-id))
@@ -396,7 +377,6 @@ declare %private function mem-op:process(
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
     $operation as item()*,
-	$nodes-to-modify-size as xs:integer,
 	$common-ancestors as node()*
 ) as node()*
 {
@@ -406,9 +386,8 @@ declare %private function mem-op:process(
 		$all-nodes-to-modify,
 		$new-nodes,
 		$operation,
-		$nodes-to-modify-size,
 		$common-ancestors,		
-		(: get the first common parent of all the items to modify :)
+		(: get the first common parent of all the items to modify (First going up the tree. Last in document order.) :)
 		$common-ancestors[fn:last()]
 	)
 };
@@ -419,7 +398,6 @@ declare %private function mem-op:process(
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
     $operation as item()*,
-	$nodes-to-modify-size as xs:integer,
 	$common-ancestors as node()*,
 	$common-parent as node()?
 ) as node()*
@@ -430,35 +408,7 @@ declare %private function mem-op:process(
 		$all-nodes-to-modify,
 		$new-nodes,
 		$operation,
-		$nodes-to-modify-size,
 		$common-ancestors,
-		(: get all of the ancestors :)
-		$common-parent/ancestor-or-self::node(),
-		$common-parent
-	)
-};
-
-declare %private function mem-op:process(
-	$transaction-id as xs:string?,
-    $nodes-to-modify as node()+,
-    $all-nodes-to-modify as node()*,
-    $new-nodes as node()*,
-    $operation as item()*,
-	$nodes-to-modify-size as xs:integer,
-	$common-ancestors as node()*,
-	$all-ancestors as node()*,
-	$common-parent as node()?
-) as node()*
-{
-	mem-op:process(
-		$transaction-id,
-		$nodes-to-modify,
-		$all-nodes-to-modify,
-		$new-nodes,
-		$operation,
-		$nodes-to-modify-size,
-		$common-ancestors,
-		$all-ancestors,		
 		(: get the first common parent of all the items to modify :)
 		$common-parent,
 		(: create new XML trees for all the unique paths to the items to modify :)
@@ -469,7 +419,8 @@ declare %private function mem-op:process(
 				$all-nodes-to-modify union $nodes-to-modify,
 				$new-nodes,
 				$operation,
-				$all-ancestors
+				(: get all of the ancestors :)
+		        $common-parent/ancestor-or-self::node()
 			)
 		}
 	)
@@ -481,9 +432,7 @@ declare %private function mem-op:process(
     $all-nodes-to-modify as node()*,
     $new-nodes as node()*,
     $operation as item()*,
-	$nodes-to-modify-size as xs:integer,
 	$common-ancestors as node()*,
-	$all-ancestors as node()*,
 	$common-parent as node()?,
 	$trees as element(mem-op:trees)
 ) as node()*
@@ -583,7 +532,6 @@ declare %private function mem-op:build-subtree(
 						$nodes-to-mod,
 						$new-nodes,
 						$operations,
-						$descendant-nodes-to-mod-size,
 						(: find the ancestors that all nodes to modify have in common :)
 						mem-op:find-ancestor-intersect($descendant-nodes-to-mod, 1, $descendant-nodes-to-mod-size, ()) except $all-ancestors
 					)
