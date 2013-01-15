@@ -781,13 +781,13 @@ declare %private function mem-op:process-ancestors(
 			mem-op:process-subtree(
 				$transaction-id,
 				(),
-				$reconstructed-ancestor[xdmp:log(.),fn:true()],
+				$reconstructed-ancestor,
 				mem-op:generate-id($current-ancestor),
 				$new-node,
 				$operations,
 				()
 			)
-	else $reconstructed-ancestor[xdmp:log(.),fn:true()]
+	else $reconstructed-ancestor
 };
 
 (: Generate an id unique to a node in memory. Right now using fn:generate-id. :)
