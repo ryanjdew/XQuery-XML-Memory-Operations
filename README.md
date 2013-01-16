@@ -4,8 +4,6 @@ This module is created to provide an optimized way to perform operations on XML 
 The goal is to provide a way to bring the functionality of the XQuery Update Facility 1.0 (http://www.w3.org/TR/xquery-update-10/) to MarkLogic.
 
 ## Advanced Transform Statements
-Note: Currently advanced transform statements *cannot* be nested inside eachother.
-
 By calling mem:copy($node as node()) as xs:string the following calls to mem operations are stored and not actually executed until mem:execute($transaction-id as xs:string) is called. This allows the document to be rebuilt only once and increases performance.
 
 You can just perform a copy and execute that will provide a copy of the node free from ancestors.
