@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.5.2
+@version 0.5.3
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 6+.
 ~:)
@@ -737,72 +737,101 @@ function mem-op:build-new-xml(
   $operations as xs:string*,
   $modifier-nodes as element(mem-op:modifier-nodes)*)
 {
-  if (empty($operations))
-  then $node
+  mem-op:build-new-xml(
+    $transaction-id,
+    $node,
+    $operations,
+    $modifier-nodes,
+    ()
+  )
+};
+
+declare %private 
+function mem-op:build-new-xml(
+  $transaction-id as xs:string?,
+  $nodes as node()*,
+  $operations as xs:string*,
+  $modifier-nodes as element(mem-op:modifier-nodes)*,
+  $modifying-node as node()?)
+{
+  if (empty($operations) or empty($nodes))
+  then $nodes
   else
-    mem-op:build-new-xml(
-      $transaction-id,
-      let $operation as xs:string := head($operations)
-      let $new-nodes as node()* :=
-        let $modifier-nodes := $modifier-nodes[@mem-op:operation eq $operation]
-        return
-          ($modifier-nodes/@node() except
-           $modifier-nodes/@mem-op:operation,
-           $modifier-nodes/node() except
-           $modifier-nodes/mem-op:id)
+    let $node as node()? := if (count($nodes) eq 1) then $nodes else $modifying-node
+    let $pivot-pos as xs:integer? := $nodes/(if (. is $node) then position() else ())
+    let $operation as xs:string := head($operations)
+    let $mod-nodes as node()* :=
+      let $modifier-nodes := $modifier-nodes[@mem-op:operation eq $operation]
       return
-        switch ($operation)
-        case "replace" return $new-nodes
-        case "insert-child" return
+        ($modifier-nodes/@node() except
+         $modifier-nodes/@mem-op:operation,
+         $modifier-nodes/node() except
+         $modifier-nodes/mem-op:id)
+    let $new-nodes := 
+      switch ($operation)
+      case "replace" return $mod-nodes
+      case "insert-child" return
           element { node-name($node) } {
-            let $attributes-to-insert := $new-nodes[self::attribute()]
+            let $attributes-to-insert := $mod-nodes[self::attribute()]
             return
               ($node/@*,
                $attributes-to-insert,
                $node/node(),
-               $new-nodes except $attributes-to-insert)
+               $mod-nodes except $attributes-to-insert)
           }
         case "insert-child-first" return
           element { node-name($node) } {
-            let $attributes-to-insert := $new-nodes[self::attribute()]
+            let $attributes-to-insert := $mod-nodes[self::attribute()]
             return
               ($attributes-to-insert,
                $node/@*,
-               $new-nodes except $attributes-to-insert,
+               $mod-nodes except $attributes-to-insert,
                $node/node())
           }
-        case "insert-after" return ($node, $new-nodes)
-        case "insert-before" return ($new-nodes, $node)
+        case "insert-after" return ($node, $mod-nodes)
+        case "insert-before" return ($mod-nodes, $node)
         case "rename" return
-          element { node-name(($new-nodes[self::element()])[1]) } { $node/@*, $node/node() }
+          element { node-name(($mod-nodes[self::element()])[1]) } { $node/@*, $node/node() }
         case "replace-value" return
           typeswitch ($node)
-           case attribute() return attribute { node-name($node) } { $new-nodes }
+           case attribute() return attribute { node-name($node) } { $mod-nodes }
            case element() return
-             element { node-name($node) } { $node/@*, $new-nodes }
+             element { node-name($node) } { $node/@*, $mod-nodes }
            case processing-instruction() return
              processing-instruction {
                node-name($node)
              } {
-               $new-nodes
+               $mod-nodes
              }
            case comment() return
              comment {
-               $new-nodes
+               $mod-nodes
              }
-           case text() return $new-nodes
+           case text() return $mod-nodes
            default return ()
         case "transform" return
           if (exists($transaction-id))
           then
             map:get(
               map:get($queue, $transaction-id),
-              string($new-nodes))(
+              string($mod-nodes))(
               $node)
           else
-            map:get($transform-functions, string($new-nodes))(
+            map:get($transform-functions, string($mod-nodes))(
               $node)
-        default return (),
-      tail($operations),
-      $modifier-nodes)
+        default return ()
+    return
+      mem-op:build-new-xml(
+        $transaction-id,
+        unordered {
+            $nodes[position() lt $pivot-pos],
+            $new-nodes,
+            $nodes[position() gt $pivot-pos]
+        },
+        tail($operations),
+        $modifier-nodes,
+        if ($operation = ('insert-after','insert-before'))
+        then $node
+        else $new-nodes[1]
+      )
 };

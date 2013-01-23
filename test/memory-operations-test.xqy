@@ -92,6 +92,30 @@ as item()*
 	)
 };
 
+declare function insert-before-and-insert-attribute()
+as item()*
+{
+	let $new-xml := 
+	           let $id := mem:copy($test-xml) 
+			   return (
+	               mem:insert-before($id,
+						$test-xml/body/div/p[@class eq "p3"],
+						element p { attribute class {"testing"}}
+					),
+					mem:insert-child($id, $test-xml/body/div/p[@class eq "p3"], attribute data-testing {"this-is-a-test"}),
+					mem:execute($id)
+				)
+	return (
+	   assert:equal(fn:count($new-xml/body/div/p[@class eq "p3"]), 2),
+	   for $p at $pos in $new-xml/body/div/p[@class eq "p3"]
+	   return (
+		  assert:equal(fn:string(($p/preceding-sibling::node())[fn:last()]/@class), 'testing'),
+		  assert:equal(fn:string($p/@data-testing), 'this-is-a-test'),
+		  assert:equal(fn:string($p/parent::node()/@id), fn:concat('div',$pos))
+	   )
+	)
+};
+
 declare function insert-after()
 as item()*
 {
@@ -109,6 +133,29 @@ as item()*
 	)
 };
 
+declare function insert-after-and-insert-attribute()
+as item()*
+{
+	let $new-xml := 
+	           let $id := mem:copy($test-xml) 
+			   return (
+				    mem:insert-after($id,
+						$test-xml/body/div/p[@class eq "p3"],
+						element p { attribute class {"testing"}}
+					),
+					mem:insert-child($id, $test-xml/body/div/p[@class eq "p3"], attribute data-testing {"this-is-a-test"}),
+					mem:execute($id)
+				)
+	return (
+	   assert:equal(fn:count($new-xml/body/div/p[@class eq "p3"]), 2),
+	   for $p at $pos in $new-xml/body/div/p[@class eq "p3"]
+	   return (
+		  assert:equal(fn:string($p/following-sibling::node()[1]/@class), 'testing'),
+		  assert:equal(fn:string($p/@data-testing), 'this-is-a-test'),
+		  assert:equal(fn:string($p/parent::node()/@id), fn:concat('div',$pos))
+	   )
+	)
+};
 declare function remove-items()
 as item()*
 {
