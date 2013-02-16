@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.5.3
+@version 0.5.4
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 6+.
 ~:)
@@ -251,7 +251,7 @@ as xs:string
 
 (: Execute transaction :)
 declare function mem-op:execute($transaction-id as xs:string)
-as node()?
+as node()*
 {
   map:get($queue, $transaction-id) !
   (if (exists(map:get(., "nodes-to-modify")))
@@ -415,11 +415,7 @@ function mem-op:process(
   $trees as element(mem-op:trees))
 as node()*
 {
-  if (exists($common-parent) and
-      not(
-        exists($transaction-id) and
-        $nodes-to-modify is
-        map:get(map:get($queue, $transaction-id), "copy")))
+  if (exists($common-parent))
   then
     mem-op:process-ancestors(
       $transaction-id,
@@ -432,7 +428,7 @@ as node()*
       $new-nodes,
       let $placed-trees as node()* :=
         mem-op:place-trees(
-          $nodes-to-modify,
+          $nodes-to-modify except $common-parent,
           $common-parent/(@* | node()) except
           $nodes-to-modify/ancestor-or-self::node(),
           $trees)
@@ -596,12 +592,16 @@ function mem-op:place-trees(
   $trees as element(mem-op:trees))
 as node()*
 {
+  node-op:inbetween(
+		$merging-nodes, (),$nodes-to-modify[1]),
   (: fold left over the process trees function. :)
   fold-left(
     mem-op:place-trees#5(
       $nodes-to-modify, $merging-nodes, $trees, ?, ?),
     (),
-    $nodes-to-modify)
+    $nodes-to-modify),
+  node-op:inbetween(
+  		$merging-nodes, $nodes-to-modify[fn:last()], ())
 };
 
 (: This function is passed into fold-left. It places the new XML in the proper order for document creation. :)
@@ -614,7 +614,7 @@ function mem-op:place-trees(
   $node-to-modify as node()?)
 as node()*
 {
-  let $previous-mod-node :=
+  let $next-mod-node :=
     ($nodes-to-modify intersect
      $node-to-modify/following::node())[1]
   let $current-modified-id :=
@@ -622,16 +622,16 @@ as node()*
       "http://maxdewpoint.blogspot.com/memory-operations",
       fn:concat("_", mem-op:generate-id($node-to-modify)))
   return
-    ((: If modify node is the first node then add nodes that come before :)
-     if ($node-to-modify is $nodes-to-modify[1])
-     then node-op:inbetween($merging-nodes, (), $node-to-modify)
-     else (),
+    (
      $result,
      $trees/
      *[fn:node-name(.) eq $current-modified-id]/
      (@* | node()),
-     node-op:inbetween(
-       $merging-nodes, $node-to-modify, $previous-mod-node))
+     if (exists($next-mod-node))
+	 then
+		 node-op:inbetween(
+       		$merging-nodes, $node-to-modify, $next-mod-node)
+	 else ())
 };
 
 (: Go up the tree to build new XML using a fold-left. This is used when there are no side steps to merge in, only a direct path. :)
