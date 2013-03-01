@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.5.4
+@version 0.5.5
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 6+.
 ~:)
@@ -592,16 +592,21 @@ function mem-op:place-trees(
   $trees as element(mem-op:trees))
 as node()*
 {
-  node-op:inbetween(
-		$merging-nodes, (),$nodes-to-modify[1]),
+  let $beginning as node()* := 
+    (node-op:inbetween(
+	   $merging-nodes, (),$nodes-to-modify[1]),
   (: fold left over the process trees function. :)
-  fold-left(
-    mem-op:place-trees#5(
-      $nodes-to-modify, $merging-nodes, $trees, ?, ?),
-    (),
-    $nodes-to-modify),
-  node-op:inbetween(
-  		$merging-nodes, $nodes-to-modify[fn:last()], ())
+    fold-left(
+        mem-op:place-trees#5(
+        $nodes-to-modify, $merging-nodes, $trees, ?, ?),
+        (),
+        $nodes-to-modify)
+     )
+  return
+    (
+        $beginning,
+        $merging-nodes except $beginning
+    )
 };
 
 (: This function is passed into fold-left. It places the new XML in the proper order for document creation. :)
