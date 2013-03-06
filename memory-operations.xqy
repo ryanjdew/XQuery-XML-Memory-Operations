@@ -306,7 +306,7 @@ as empty-sequence()
              attribute mem-op:operation { $operation },
              $modifier-attributes,
              $modified-node-ids,
-             $modifier-nodes except $modifier-attributes
+             unordered { $modifier-nodes except $modifier-attributes }
            }</mem-op:modifier-nodes>,
          map:get(., "modifier-nodes")))))
 };
