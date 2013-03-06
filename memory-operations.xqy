@@ -745,7 +745,7 @@ function mem-op:build-new-xml(
   mem-op:build-new-xml(
     $transaction-id,
     $node,
-    $operations,
+    distinct-values($operations),
     $modifier-nodes,
     ()
   )
