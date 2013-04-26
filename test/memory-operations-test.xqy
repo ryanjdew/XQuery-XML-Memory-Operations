@@ -275,7 +275,6 @@ as item()*
 
 (:The following tests must be commented out due to them breaking the current XQuery parser in XRay :)
 
-(:
 declare function transform-function-transaction()
 as item()*
 {
@@ -295,7 +294,6 @@ declare function transform-function()
 as item()*
 {
   let $title := $test-xml/head/title
-  let $new-xml :=  mem:transform($id,$title,function($node as node()) as node()* {element new-title {"This is so awesome!"}})
+  let $new-xml :=  mem:transform($title,function($node as node()) as node()* {element new-title {"This is so awesome!"}})
   return assert:equal(fn:string($new-xml/head/new-title), "This is so awesome!")
 };
-:)
