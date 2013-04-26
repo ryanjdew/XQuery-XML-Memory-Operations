@@ -372,7 +372,7 @@ as node()*
     $nodes-to-modify,
     $new-nodes,
     $operation,
-    mem-op:find-ancestor-intersect($nodes-to-modify, 1, ()) 
+    mem-op:find-ancestor-intersect(node-op:outermost($nodes-to-modify), 1, ()) 
         except
     (if (exists($transaction-id))
      then map:get(map:get($queue, $transaction-id), "copy")/ancestor::node()
@@ -561,7 +561,7 @@ as node()*
           $operations,
           (: find the ancestors that all nodes to modify have in common :)
           mem-op:find-ancestor-intersect(
-            $descendant-nodes-to-mod,
+            node-op:outermost($descendant-nodes-to-mod),
             1,
             ()) except
           $all-ancestors)
