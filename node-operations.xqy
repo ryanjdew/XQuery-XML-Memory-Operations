@@ -23,21 +23,21 @@ declare default function namespace "http://www.w3.org/2005/xpath-functions";
 
 
 declare function node-op:innermost($nodes as node()*) {
-	node-op:function-select((
+	(: node-op:function-select((
 		function-lookup(QName('http://www.w3.org/2005/xpath-functions','innermost'), 1),
-		function ($nodes as node()*) {
+		function ($nodes as node()*) { :)
 			$nodes except $nodes/ancestor::node()
-		}
-	))($nodes)
+	(:	}
+	))($nodes) :)
 };
 
 declare function node-op:outermost($nodes as node()*) {
-	node-op:function-select((
+	(:node-op:function-select((
 		function-lookup(QName('http://www.w3.org/2005/xpath-functions','outermost'), 1),
-		function ($nodes as node()*) {
+		function ($nodes as node()*) { :)
 			$nodes except ($nodes/descendant::node(),$nodes/descendant-or-self::node()/attribute::node())
-		}
-	))($nodes)
+	(:	}
+	))($nodes) :)
 };
 
 declare function node-op:inbetween($nodes as node()*, $start as node()?, $end as node()?) {

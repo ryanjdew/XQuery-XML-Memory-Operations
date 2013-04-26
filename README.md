@@ -1,4 +1,4 @@
-# XQuery XML Memory Operations  [![Click here to lend your support to: This module and make a donation at www.pledgie.com !](http://www.pledgie.com/campaigns/18398.png?skin_name=chrome)](http://pledgie.com/campaigns/18398)
+# XQuery XML Memory Operations
 This module is created to provide an optimized way to perform operations on XML in memory. With heavy use XPath axis, node comparisions, and set operators this library is able to make changes to XML while only reconstructing nodes within the direct path of the nodes being altered. It also provides a way to perform multiple operations, while only reconstructiing the XML tree once.
 
 The goal is to provide a way to bring the functionality of the XQuery Update Facility 1.0 (http://www.w3.org/TR/xquery-update-10/) to MarkLogic.
