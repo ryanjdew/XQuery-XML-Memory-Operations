@@ -63,7 +63,7 @@ declare %private function node-op:inbetween($nodes as node()*, $start as node()?
 	   else ()
 	) union (
 	   if (exists($start) and exists($end))
-	   then $nodes[. >> $start and . << $end]
+	   then $nodes[. >> $start][. << $end]
 	   else if (exists($start))
 	   then $nodes[. >> $start]
 	   else if (exists($end))

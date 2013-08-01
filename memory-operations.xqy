@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.5.6
+@version 0.5.8
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 6+.
 ~:)
@@ -281,24 +281,51 @@ as xs:string
 declare function mem-op:execute($transaction-id as xs:string)
 as node()*
 {
-  let $tranaction-map as map:map := map:get($queue, $transaction-id)
+  let $transaction-map as map:map := map:get($queue, $transaction-id)
   return
   (
-   if (exists(map:get($tranaction-map, "nodes-to-modify")))
+   if (exists(map:get($transaction-map, "nodes-to-modify")))
    then
      mem-op:process(
        $transaction-id,
        (: Ensure nodes to modify are in document order by using union :)
-       map:get($tranaction-map, "nodes-to-modify") | (),
-       map:get($tranaction-map, "modifier-nodes"),
-       map:get($tranaction-map, "operation")
+       map:get($transaction-map, "nodes-to-modify") | (),
+       map:get($transaction-map, "modifier-nodes"),
+       map:get($transaction-map, "operation"),
+       map:get($transaction-map, "copy")
      )
    else
      validate lax {
-       map:get($tranaction-map, "copy")
+       map:get($transaction-map, "copy")
      }
   ),
   map:delete($queue, $transaction-id)
+};
+
+(: Execute transaction :)
+declare function mem-op:execute-section($transaction-id as xs:string, $section-root as node())
+as node()*
+{
+  let $transaction-map as map:map := map:get($queue, $transaction-id),
+      $nodes-to-mod as node()* := map:get($transaction-map, "nodes-to-modify") intersect ($section-root/descendant-or-self::node(),$section-root/descendant-or-self::*/@*)
+  return
+  (
+   if (exists($nodes-to-mod))
+   then 
+     validate lax {
+       (mem-op:process(
+         $transaction-id,
+         $nodes-to-mod,
+         map:get($transaction-map, "modifier-nodes"),
+         map:get($transaction-map, "operation"),
+         $section-root
+       ) except $section-root/../(@*|node()))
+     }
+   else
+     validate lax {
+       $section-root
+     }
+  )
 };
 
 (: Begin private functions! :)
@@ -312,28 +339,28 @@ function mem-op:queue(
   $operation as xs:string?)
 as empty-sequence()
 {
-  let $tranaction-map as map:map := map:get($queue, $transaction-id)
+  let $transaction-map as map:map := map:get($queue, $transaction-id)
   (: Creates elements based off of generate-id (i.e., node is 12439f8e4a3, then we get back <mem-op:_12439f8e4a3/>) :)
   let $modified-node-ids as element()* := mem-op:id-wrapper($nodes-to-modify) (: This line uses function mapping :)
   return
   (
     map:put(
-        $tranaction-map,
+        $transaction-map,
         "operation",
         (<mem-op:operation>{
              attribute operation { $operation },
              $modified-node-ids
            }</mem-op:operation>,
          (: Ensure operations are accummulated :)
-         map:get($tranaction-map, "operation"))),
+         map:get($transaction-map, "operation"))),
     map:put(
-        $tranaction-map,
+        $transaction-map,
         "nodes-to-modify",
         ($nodes-to-modify,
          (: Ensure nodes to modify are accummulated :)
-         map:get($tranaction-map, "nodes-to-modify"))),
+         map:get($transaction-map, "nodes-to-modify"))),
     map:put(
-        $tranaction-map,
+        $transaction-map,
         "modifier-nodes",
         (<mem-op:modifier-nodes>{
              attribute mem-op:operation { $operation },
@@ -342,7 +369,7 @@ as empty-sequence()
              $modifier-nodes[not(self::attribute())]
            }</mem-op:modifier-nodes>,
          (: Ensure nodes to modifier nodes are accummulated :)
-         map:get($tranaction-map, "modifier-nodes")))
+         map:get($transaction-map, "modifier-nodes")))
   )
 };
 
@@ -355,7 +382,7 @@ function mem-op:process(
   $operation)
 as node()*
 {
-  mem-op:process((), $nodes-to-modify, $new-nodes, $operation)
+  mem-op:process((), $nodes-to-modify, $new-nodes, $operation, ())
 };
 
 declare %private 
@@ -363,7 +390,8 @@ function mem-op:process(
   $transaction-id as xs:string?,
   $nodes-to-modify as node()+,
   $new-nodes as node()*,
-  $operation)
+  $operation,
+  $root-node as node()?)
 as node()*
 {
   mem-op:process(
@@ -374,8 +402,8 @@ as node()*
     $operation,
     mem-op:find-ancestor-intersect(node-op:outermost($nodes-to-modify), 1, ()) 
         except
-    (if (exists($transaction-id))
-     then map:get(map:get($queue, $transaction-id), "copy")/ancestor::node()
+    (if (exists($root-node))
+     then $root-node/ancestor::node()
      else ())
   )
 };
@@ -535,9 +563,9 @@ function mem-op:build-subtree(
 as node()*
 {
   let $nodes-to-mod :=
+     $nodes-to-modify intersect
     ($mod-node/descendant-or-self::node(),
-     $mod-node/descendant-or-self::node()/@node()) intersect
-    $nodes-to-modify
+     $mod-node/descendant-or-self::node()/@node())
   let $mod-node-id-qn := mem-op:generate-id-qn($nodes-to-mod[1])
   let $descendant-nodes-to-mod := $nodes-to-mod except $mod-node
   return
@@ -815,7 +843,7 @@ function mem-op:build-new-xml(
   mem-op:build-new-xml(
     $transaction-id,
     $node,
-    distinct-values($operations),
+    mem-op:weighed-operations(distinct-values($operations)),
     $modifier-nodes,
     ()
   )
@@ -915,4 +943,14 @@ function mem-op:build-new-xml(
         then $node
         else $new-nodes[1]
       )
+};
+
+declare %private 
+function mem-op:weighed-operations(
+  $operations as xs:string*) as xs:string*
+{
+  $operations[. eq "replace"],
+  $operations[. eq "replace-value"],
+  $operations[not(. = ("replace","replace-value","transform"))],
+  $operations[. eq "transform"]
 };

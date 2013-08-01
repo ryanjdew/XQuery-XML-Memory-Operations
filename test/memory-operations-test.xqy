@@ -297,3 +297,33 @@ as item()*
   let $new-xml :=  mem:transform($title,function($node as node()) as node()* {element new-title {"This is so awesome!"}})
   return assert:equal(fn:string($new-xml/head/new-title), "This is so awesome!")
 };
+
+declare function execute-section()
+as item()*
+{
+  let $div1 := $test-xml//div[@id = "div1"]
+  let $new-xml := 
+				let $id := mem:copy($test-xml)[1]
+				return
+				(
+				mem:insert-child($id,$div1,attribute class {"added-class"}),
+				mem:replace($id,$div1,
+				    let $copy := mem:execute-section($id, $div1)
+				    for $i in (1 to 10)
+				    let $cid := mem:copy($copy)
+				    return 
+				        (
+				            mem:insert-child($cid,$copy,attribute data-position {$i}),
+				            mem:execute($cid)
+				        )
+				),
+				mem:execute($id)	
+				)
+  return (assert:equal(fn:count($new-xml//div[@id = "div1"]), 10),
+            for $div at $pos in $new-xml//div[@id = "div1"]
+			return (
+			 assert:equal(fn:number($div/@data-position), $pos),
+			 assert:equal(fn:string($div/@class), "added-class")
+			)
+		)
+};
