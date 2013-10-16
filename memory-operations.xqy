@@ -1,19 +1,21 @@
-xquery version "3.0";
+xquery version "1.0-ml";
 (:~
-Copyright (c) 2012 Ryan Dew
+Copyright (c) 2013 Ryan Dew
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
- to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
- and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+       http://www.apache.org/licenses/LICENSE-2.0
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
- WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.5.8
+@version 1.0
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 6+.
 ~:)
@@ -23,6 +25,7 @@ declare default function namespace "http://www.w3.org/2005/xpath-functions";
 declare namespace xdmp="http://marklogic.com/xdmp";
 declare namespace map="http://marklogic.com/xdmp/map";
 declare option xdmp:mapping "true";
+declare option xdmp:copy-on-validate "true";
 declare %private variable $queue as map:map := map:map();
 declare %private variable $transform-functions as map:map := map:map();
 
@@ -297,7 +300,8 @@ as node()*
    else
      validate lax {
        map:get($transaction-map, "copy")
-     }
+     },
+    map:clear($transaction-map)
   ),
   map:delete($queue, $transaction-id)
 };
@@ -312,7 +316,7 @@ as node()*
   (
    if (exists($nodes-to-mod))
    then 
-     validate lax {
+     (validate lax {
        (mem-op:process(
          $transaction-id,
          $nodes-to-mod,
@@ -320,7 +324,9 @@ as node()*
          map:get($transaction-map, "operation"),
          $section-root
        ) except $section-root/../(@*|node()))
-     }
+     },
+     map:put($transaction-map, "nodes-to-modify",map:get($transaction-map, "nodes-to-modify") except $nodes-to-mod)
+    )
    else
      validate lax {
        $section-root
@@ -452,7 +458,7 @@ as node()*
     (: create new XML trees for all the unique paths to 
         the items to modify :)
     <mem-op:trees>{
-        if (fn:exists($common-parent))
+        if (exists($common-parent))
         then
         mem-op:build-subtree(
           $transaction-id,
@@ -497,7 +503,7 @@ as node()*
     mem-op:process-ancestors(
       $transaction-id,
       (: Ancestors of the common parent which will be used to walk up the XML tree. :)
-      $common-ancestors except $common-parent,
+      reverse($common-ancestors except $common-parent),
       $common-parent,
       $operation,
       $all-nodes-to-modify,
@@ -610,7 +616,7 @@ as node()*
 {
   mem-op:process-ancestors(
     $transaction-id,
-    $ancestors,
+    reverse($ancestors),
     (),
     $operations,
     $node-to-modify,
@@ -623,8 +629,7 @@ as node()*
        case xs:string return $operations
        default return
          $operations[*[node-name(.) eq $node-to-modify-id-qn]]/
-         @operation/
-         string(.),
+         @operation,
       typeswitch ($new-node)
        case element(mem-op:modifier-nodes)* return $new-node[*[node-name(.) eq $node-to-modify-id-qn]]
        default return
@@ -677,7 +682,7 @@ as node()*
   (: fold left over the process trees function. :)
     fold-left(
         mem-op:place-trees#5(
-        $nodes-to-modify, $merging-nodes, $trees, ?, ?),
+        $nodes-to-modify, $merging-nodes, $trees/*[@*|node()], ?, ?),
         (),
         $nodes-to-modify)
      )
@@ -694,7 +699,7 @@ declare %private
 function mem-op:place-trees(
   $nodes-to-modify as node()+,
   $merging-nodes as node()*,
-  $trees as element(mem-op:trees),
+  $trees as element()*,
   $result as node()*,
   $node-to-modify as node()?)
 as node()*
@@ -702,25 +707,22 @@ as node()*
   let $next-mod-node :=
     (: Grab first node to modify that comes after the current. :)
     ($nodes-to-modify[. >> $node-to-modify])[1]
-  let $current-modified-id :=
+  let $current-modified-id as xs:QName :=
     mem-op:generate-id-qn($node-to-modify)
   return
     (
      (: Continue the accumulation of results :)
      $result,
      (: Grab new nodes related to the current node to modify :)
-     $trees/
-     *[node-name(.) eq $current-modified-id]/
-     (@* | node()),
+     $trees[node-name(.) eq $current-modified-id]/(@* | node()),
      (: If there is a next node to modify then get the nodes between the current and the next. :)
      if (exists($next-mod-node))
-	 then
-		 node-op:inbetween(
-       		$merging-nodes, $node-to-modify, $next-mod-node)
+     then
+      node-op:inbetween($merging-nodes, $node-to-modify, $next-mod-node)
 	 else ())
 };
 
-(: Go up the tree to build new XML using a fold-left. This is used when there are no side steps to merge in, only a direct path. :)
+(: Go up the tree to build new XML using tail recursion. This is used when there are no side steps to merge in, only a direct path. :)
 declare %private 
 function mem-op:process-ancestors(
   $transaction-id as xs:string?,
@@ -733,69 +735,53 @@ function mem-op:process-ancestors(
   $base as node()*)
 as node()*
 {
-  (: TODO: Perhaps using fold-left to be cool rather than using what would be best. :)
-  fold-left(
-    mem-op:process-ancestors#10(
-      $transaction-id,
-      $ancestors,
-      $last-ancestor,
-      $operations,
-      $nodes-to-modify,
-      $ancestor-nodes-to-modify,
-      $new-node,
-      $base,
-      ?,
-      ?),
-    $base,
-    reverse($ancestors))
-};
-
-declare %private 
-function mem-op:process-ancestors(
-  $transaction-id as xs:string?,
-  $ancestors as node()*,
-  $last-ancestor as node()?,
-  $operations,
-  $nodes-to-modify as node()*,
-  $ancestor-nodes-to-modify as node()*,
-  $new-node as node()*,
-  $baseline as node()*,
-  $result as node()*,
-  $current-ancestor as node())
-as node()*
-{
-  let $last-ancestor := ($ancestors[. >> $current-ancestor], $last-ancestor)[1]
-  let $preceding-siblings := $last-ancestor/preceding-sibling::node()
-  let $following-siblings := $last-ancestor/following-sibling::node()
-  let $reconstructed-ancestor :=
-    typeswitch ($current-ancestor)
-     case element() return
+  if (exists($ancestors))
+  then
+    let $current-ancestor := head($ancestors)
+    let $preceding-siblings := $last-ancestor/preceding-sibling::node()
+    let $following-siblings := $last-ancestor/following-sibling::node()
+    let $reconstructed-ancestor :=
+      typeswitch ($current-ancestor)
+      case element() return
        element { node-name($current-ancestor) } {
          $current-ancestor/@attribute() except
          $nodes-to-modify,
          $preceding-siblings,
-         ($result, $baseline)[1],
+         $base,
          $following-siblings
        }
-     case document-node() return
+      case document-node() return
        document {
-         ($result, $baseline)[1]
+         $base
        }
-     default return ()
-  return
-    if (some $n in $ancestor-nodes-to-modify
-        satisfies $n is $current-ancestor)
-    then
-      mem-op:process-subtree(
+      default return ()
+    let $new-ancestor :=
+       if (some $n in $ancestor-nodes-to-modify
+          satisfies $n is $current-ancestor)
+      then
+        mem-op:process-subtree(
+          $transaction-id,
+          (),
+          $reconstructed-ancestor,
+          mem-op:generate-id-qn($current-ancestor),
+          $new-node,
+          $operations,
+          ())
+      else
+        $reconstructed-ancestor
+    return
+      mem-op:process-ancestors(
         $transaction-id,
-        (),
-        $reconstructed-ancestor,
-        mem-op:generate-id-qn($current-ancestor),
-        $new-node,
+        tail($ancestors),
+        $current-ancestor,
         $operations,
-        ())
-    else
-      $reconstructed-ancestor
+        $nodes-to-modify,
+        $ancestor-nodes-to-modify,
+        $new-node,
+        $new-ancestor
+      )
+  else
+    $base
 };
 
 (: Generate an id unique to a node in memory. Right now using fn:generate-id. :)
@@ -874,6 +860,7 @@ function mem-op:build-new-xml(
          $modifier-nodes/@mem-op:operation,
          $modifier-nodes/node() except
          $modifier-nodes/mem-op:*)
+
     let $new-nodes := 
       switch ($operation)
       case "replace" return $mod-nodes
