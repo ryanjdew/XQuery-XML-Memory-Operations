@@ -29,7 +29,7 @@ declare variable $test-xml := <html>
 
 
 
-declare function insert-child-into-root-attribute()
+declare %test:case function insert-child-into-root-attribute()
 as item()*
 {
 	let $new-xml := mem:insert-child(
@@ -39,7 +39,7 @@ as item()*
 	return assert:equal(fn:string($new-xml/@test), 'testing')	
 };
 
-declare function insert-child-into-many-items-attribute()
+declare %test:case function insert-child-into-many-items-attribute()
 as item()*
 {
 	let $new-xml := mem:insert-child(
@@ -52,7 +52,7 @@ as item()*
 	return assert:equal(fn:string($i/@test), 'testing')	
 };
 
-declare function insert-child-into-root-element()
+declare %test:case function insert-child-into-root-element()
 as item()*
 {
 	let $new-xml := mem:insert-child(
@@ -62,7 +62,7 @@ as item()*
 	return assert:equal(fn:string($new-xml/test), 'testing')	
 };
 
-declare function insert-child-into-many-items-element()
+declare  %test:case function insert-child-into-many-items-element()
 as item()*
 {
 	let $new-xml := mem:insert-child(
@@ -75,7 +75,7 @@ as item()*
 	return assert:equal(fn:string($i/test), 'testing')	
 };
 
-declare function insert-before()
+declare %test:case function insert-before()
 as item()*
 {
 	let $new-xml := mem:insert-before(
@@ -92,7 +92,7 @@ as item()*
 	)
 };
 
-declare function insert-before-and-insert-attribute()
+declare %test:case function insert-before-and-insert-attribute()
 as item()*
 {
 	let $new-xml := 
@@ -116,7 +116,7 @@ as item()*
 	)
 };
 
-declare function insert-after()
+declare %test:case function insert-after()
 as item()*
 {
 	let $new-xml := mem:insert-after(
@@ -133,7 +133,7 @@ as item()*
 	)
 };
 
-declare function insert-after-and-insert-attribute()
+declare %test:case function insert-after-and-insert-attribute()
 as item()*
 {
 	let $new-xml := 
@@ -156,7 +156,7 @@ as item()*
 	   )
 	)
 };
-declare function remove-items()
+declare %test:case function remove-items()
 as item()*
 {
    let $new-xml := mem:delete(
@@ -166,7 +166,7 @@ as item()*
 			assert:equal(fn:count($new-xml//comment()), 0))
 };
 
-declare function replace-items()
+declare %test:case function replace-items()
 as item()*
 {
    let $new-xml := mem:replace(
@@ -178,7 +178,7 @@ as item()*
 			return assert:equal(fn:string($c), 'this new comment'))
 };
 
-declare function replace-item-values()
+declare %test:case function replace-item-values()
 as item()*
 {
    let $new-xml := mem:replace-value(
@@ -190,7 +190,7 @@ as item()*
 			return assert:equal(fn:string($c), 'this new comment'))
 };
 
-declare function replace-attributes()
+declare %test:case function replace-attributes()
 as item()*
 {
    let $new-xml := mem:replace(
@@ -202,7 +202,7 @@ as item()*
 			return assert:equal(fn:string($c), 'new-class'))
 };
 
-declare function replace-value-attributes()
+declare %test:case function replace-value-attributes()
 as item()*
 {
    let $new-xml := mem:replace-value(
@@ -214,7 +214,7 @@ as item()*
 			return assert:equal(fn:string($c), 'new-class'))
 };
 
-declare function rename()
+declare %test:case function rename()
 as item()*
 {
   let $new-xml-blocks := mem:rename($test-xml//p,fn:QName("","block"))/body/div/block
@@ -222,7 +222,7 @@ as item()*
 		  return assert:equal($p/(@*|node()), $new-xml-blocks[$pos]/(@*|node())))
 };
 
-declare function advanced-operation()
+declare %test:case function advanced-operation()
 as item()*
 {
   let $new-xml := 
@@ -239,7 +239,7 @@ as item()*
 			return assert:equal(fn:string($p/@data-info), "This is also awesome!"))
 };
 
-declare function copy()
+declare %test:case function copy()
 as item()*
 {
   let $test-xml := document { $test-xml }/html
@@ -257,7 +257,7 @@ as item()*
 			return assert:equal(fn:string($p/@data-info), "This is also awesome!"))
 };
 
-declare function multiple-operations-on-one-node()
+declare %test:case function multiple-operations-on-one-node()
 as item()*
 {
   let $title := $test-xml/head/title
@@ -275,7 +275,7 @@ as item()*
 
 (:The following tests must be commented out due to them breaking the current XQuery parser in XRay :)
 
-declare function transform-function-transaction()
+declare %test:case function transform-function-transaction()
 as item()*
 {
   let $title := $test-xml/head/title
@@ -290,7 +290,7 @@ as item()*
 			assert:equal(fn:string($new-xml), "This is so awesome!"))
 };
 
-declare function transform-function()
+declare %test:case function transform-function()
 as item()*
 {
   let $title := $test-xml/head/title
@@ -298,7 +298,7 @@ as item()*
   return assert:equal(fn:string($new-xml/head/new-title), "This is so awesome!")
 };
 
-declare function execute-section()
+declare %test:case function execute-section()
 as item()*
 {
   let $div1 := $test-xml//div[@id = "div1"]
