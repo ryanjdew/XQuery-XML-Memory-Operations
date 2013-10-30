@@ -41,9 +41,9 @@ as node()?
 (: Queue insert a child into the node :)
 declare function mem-op:insert-child(
   $transaction-id as xs:string,
-  $parent-node as element()+,
+  $parent-node as element()*,
   $new-nodes as node()*)
-as node()?
+as empty-sequence()
 {
   mem-op:queue(
     $transaction-id, $parent-node, $new-nodes, "insert-child")
@@ -62,9 +62,9 @@ as node()?
 (: Queue insert as first child into the node :)
 declare function mem-op:insert-child-first(
   $transaction-id as xs:string,
-  $parent-node as element()+,
+  $parent-node as element()*,
   $new-nodes as node()*)
-as node()?
+as empty-sequence()
 {
   mem-op:queue(
     $transaction-id,
@@ -85,9 +85,9 @@ as node()?
 (: Queue insert a sibling before the node :)
 declare function mem-op:insert-before(
   $transaction-id as xs:string,
-  $sibling as node()+,
+  $sibling as node()*,
   $new-nodes as node()*)
-as node()?
+as empty-sequence()
 {
   mem-op:queue(
     $transaction-id, $sibling, $new-nodes, "insert-before")
@@ -105,9 +105,9 @@ as node()?
 (: Queue insert a sibling after the node :)
 declare function mem-op:insert-after(
   $transaction-id as xs:string,
-  $sibling as node()+,
+  $sibling as node()*,
   $new-nodes as node()*)
-as node()?
+as empty-sequence()
 {
   mem-op:queue(
     $transaction-id, $sibling, $new-nodes, "insert-after")
@@ -128,9 +128,9 @@ as node()?
 (: Queue replace of the node :)
 declare function mem-op:replace(
   $transaction-id as xs:string,
-  $replace-nodes as node()+,
+  $replace-nodes as node()*,
   $new-nodes as node()*)
-as node()?
+as empty-sequence()
 {
   mem-op:queue(
     $transaction-id,
@@ -152,8 +152,8 @@ as node()?
 (: Queue delete the node :)
 declare function mem-op:delete(
   $transaction-id as xs:string,
-  $delete-nodes as node()+)
-as node()?
+  $delete-nodes as node()*)
+as empty-sequence()
 {
   mem-op:queue(
     $transaction-id,
@@ -175,9 +175,9 @@ as node()?
 (: Queue renaming of node :)
 declare function mem-op:rename(
   $transaction-id as xs:string,
-  $nodes-to-rename as node()+,
+  $nodes-to-rename as node()*,
   $new-name as xs:QName)
-as node()?
+as empty-sequence()
 {
   mem-op:queue(
     $transaction-id,
@@ -199,9 +199,9 @@ as node()?
 (: Queue replacement of a value of an element or attribute :)
 declare function mem-op:replace-value(
   $transaction-id as xs:string,
-  $nodes-to-change as node()+,
+  $nodes-to-change as node()*,
   $value as xs:anyAtomicType?)
-as node()?
+as empty-sequence()
 {
   mem-op:queue(
     $transaction-id,
@@ -223,9 +223,9 @@ as node()?
 (: Queue replacement of contents of an element :)
 declare function mem-op:replace-contents(
   $transaction-id as xs:string,
-  $nodes-to-change as node()+,
+  $nodes-to-change as node()*,
   $contents as node()*)
-as node()?
+as empty-sequence()
 {
   mem-op:queue(
     $transaction-id,
@@ -250,9 +250,9 @@ as node()?
 (: Queues the replacement of the node with the result of the passed function :)
 declare function mem-op:transform(
   $transaction-id as xs:string,
-  $nodes-to-change as node()+,
+  $nodes-to-change as node()*,
   $transform-function as function(node()) as node()*)
-as node()?
+as empty-sequence()
 {
    let $function-key as xs:string := mem-op:function-key($transform-function)
    return 
@@ -287,8 +287,8 @@ as node()*
   let $transaction-map as map:map := map:get($queue, $transaction-id)
   return
   (
-   if (exists(map:get($transaction-map, "nodes-to-modify")))
-   then
+  if (exists(map:get($transaction-map, "nodes-to-modify")))
+  then
      mem-op:process(
        map:get($queue, $transaction-id),
        (: Ensure nodes to modify are in document order by using union :)
@@ -297,10 +297,9 @@ as node()*
        map:get($transaction-map, "operation"),
        map:get($transaction-map, "copy")
      )
-   else
-     validate lax {
-       map:get($transaction-map, "copy")
-     },
+  else
+    mem-op:safe-copy(map:get($transaction-map, "copy"))
+  ,
     map:clear($transaction-map)
   ),
   map:delete($queue, $transaction-id)
@@ -316,21 +315,19 @@ as node()*
   (
    if (exists($nodes-to-mod))
    then 
-     (validate lax {
-       (mem-op:process(
+     (mem-op:safe-copy(
+       mem-op:process(
          $transaction-map,
          $nodes-to-mod,
          map:get($transaction-map, "modifier-nodes"),
          map:get($transaction-map, "operation"),
          $section-root
        ) except $section-root/../(@*|node()))
-     },
-     map:put($transaction-map, "nodes-to-modify",map:get($transaction-map, "nodes-to-modify") except $nodes-to-mod)
+     ,
+      map:put($transaction-map, "nodes-to-modify",map:get($transaction-map, "nodes-to-modify") except $nodes-to-mod)
     )
    else
-     validate lax {
-       $section-root
-     }
+     mem-op:safe-copy($section-root)
   )
 };
 
@@ -340,16 +337,18 @@ as node()*
 declare %private 
 function mem-op:queue(
   $transaction-id as xs:string,
-  $nodes-to-modify as node()+,
+  $nodes-to-modify as node()*,
   $modifier-nodes as node()*,
   $operation as xs:string?)
 as empty-sequence()
 {
-  let $transaction-map as map:map := map:get($queue, $transaction-id)
-  (: Creates elements based off of generate-id (i.e., node is 12439f8e4a3, then we get back <mem-op:_12439f8e4a3/>) :)
-  let $modified-node-ids as element()* := mem-op:id-wrapper($nodes-to-modify) (: This line uses function mapping :)
-  return
-  (
+  if (exists($nodes-to-modify))
+  then
+    let $transaction-map as map:map := map:get($queue, $transaction-id)
+    (: Creates elements based off of generate-id (i.e., node is 12439f8e4a3, then we get back <mem-op:_12439f8e4a3/>) :)
+    let $modified-node-ids as element()* := mem-op:id-wrapper($nodes-to-modify) (: This line uses function mapping :)
+    return
+    (
     map:put(
         $transaction-map,
         "operation",
@@ -376,7 +375,8 @@ as empty-sequence()
            }</mem-op:modifier-nodes>,
          (: Ensure nodes to modifier nodes are accummulated :)
          map:get($transaction-map, "modifier-nodes")))
-  )
+    )
+  else ()
 };
 
 (: The process functions handle the core logic for handling forked paths that 
@@ -976,4 +976,17 @@ function mem-op:weighed-operations(
   $operations[. eq "replace-value"],
   $operations[not(. = ("replace","replace-value","transform"))],
   $operations[. eq "transform"]
+};
+
+declare %private 
+function mem-op:safe-copy(
+  $node as node())
+as node()? {
+  try {
+    validate lax {
+      $node
+    }
+  } catch * {
+    mem-op:reconstruct-node($node,$node/*,(),fn:true())
+  }
 };

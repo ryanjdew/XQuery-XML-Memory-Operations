@@ -31,7 +31,7 @@ declare option xdmp:copy-on-validate "true";
 (: Queue insert a child into the node :)
 declare function mem-op-fun:insert-child(
   $transaction-map as map:map,
-  $parent-node as element()+,
+  $parent-node as element()*,
   $new-nodes as node()*)
 as map:map?
 {
@@ -42,7 +42,7 @@ as map:map?
 (: Queue insert as first child into the node :)
 declare function mem-op-fun:insert-child-first(
   $transaction-map as map:map,
-  $parent-node as element()+,
+  $parent-node as element()*,
   $new-nodes as node()*)
 as map:map?
 {
@@ -56,7 +56,7 @@ as map:map?
 (: Queue insert a sibling before the node :)
 declare function mem-op-fun:insert-before(
   $transaction-map as map:map,
-  $sibling as node()+,
+  $sibling as node()*,
   $new-nodes as node()*)
 as map:map?
 {
@@ -67,7 +67,7 @@ as map:map?
 (: Queue insert a sibling after the node :)
 declare function mem-op-fun:insert-after(
   $transaction-map as map:map,
-  $sibling as node()+,
+  $sibling as node()*,
   $new-nodes as node()*)
 as map:map?
 {
@@ -78,7 +78,7 @@ as map:map?
 (: Queue replace of the node :)
 declare function mem-op-fun:replace(
   $transaction-map as map:map,
-  $replace-nodes as node()+,
+  $replace-nodes as node()*,
   $new-nodes as node()*)
 as map:map?
 {
@@ -92,7 +92,7 @@ as map:map?
 (: Queue delete the node :)
 declare function mem-op-fun:delete(
   $transaction-map as map:map,
-  $delete-nodes as node()+)
+  $delete-nodes as node()*)
 as map:map?
 {
   mem-op-fun:queue(
@@ -105,7 +105,7 @@ as map:map?
 (: Queue renaming of node :)
 declare function mem-op-fun:rename(
   $transaction-map as map:map,
-  $nodes-to-rename as node()+,
+  $nodes-to-rename as node()*,
   $new-name as xs:QName)
 as map:map?
 {
@@ -119,7 +119,7 @@ as map:map?
 (: Queue replacement of a value of an element or attribute :)
 declare function mem-op-fun:replace-value(
   $transaction-map as map:map,
-  $nodes-to-change as node()+,
+  $nodes-to-change as node()*,
   $value as xs:anyAtomicType?)
 as map:map?
 {
@@ -133,7 +133,7 @@ as map:map?
 (: Queue replacement of contents of an element :)
 declare function mem-op-fun:replace-contents(
   $transaction-map as map:map,
-  $nodes-to-change as node()+,
+  $nodes-to-change as node()*,
   $contents as node()*)
 as map:map?
 {
@@ -147,7 +147,7 @@ as map:map?
 (: Queues the replacement of the node with the result of the passed function :)
 declare function mem-op-fun:transform(
   $transaction-map as map:map,
-  $nodes-to-change as node()+,
+  $nodes-to-change as node()*,
   $transform-function as function(node()) as node()*)
 as map:map?
 {
@@ -206,10 +206,12 @@ function mem-op-fun:queue(
   $operation as xs:string?)
 as map:map
 {
-  (: Creates elements based off of generate-id (i.e., node is 12439f8e4a3, then we get back <mem-op:_12439f8e4a3/>) :)
-  let $modified-node-ids as element()* := mem-op:id-wrapper($nodes-to-modify) (: This line uses function mapping :)
-  return
-  (
+  if (fn:exists($nodes-to-modify))
+  then 
+    (: Creates elements based off of generate-id (i.e., node is 12439f8e4a3, then we get back <mem-op:_12439f8e4a3/>) :)
+    let $modified-node-ids as element()* := mem-op:id-wrapper($nodes-to-modify) (: This line uses function mapping :)
+    return
+    (
     map:new((
       $transaction-map,
       map:entry(
@@ -239,5 +241,7 @@ as map:map
          map:get($transaction-map, "modifier-nodes"))
       )
     ))
-  )
+    )
+  else
+    $transaction-map
 };

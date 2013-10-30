@@ -273,8 +273,6 @@ as item()*
 			assert:equal(fn:string($new-xml), "This is so awesome!"))
 };
 
-(:The following tests must be commented out due to them breaking the current XQuery parser in XRay :)
-
 declare %test:case function transform-function-transaction()
 as item()*
 {

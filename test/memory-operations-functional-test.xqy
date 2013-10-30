@@ -52,14 +52,11 @@ declare %test:case function insert-after-and-insert-attribute()
 as item()*
 {
 	let $new-xml := 
-	           let $id := mem:copy($test-xml) 
-			   return (
-				    mem:insert-after($id,
+	        mem:execute(mem:insert-child(mem:insert-after(mem:copy($test-xml),
 						$test-xml/body/div/p[@class eq "p3"],
 						element p { attribute class {"testing"}}
 					),
-					mem:insert-child($id, $test-xml/body/div/p[@class eq "p3"], attribute data-testing {"this-is-a-test"}),
-					mem:execute($id)
+					$test-xml/body/div/p[@class eq "p3"], attribute data-testing {"this-is-a-test"})
 				)
 	return (
 	   assert:equal(fn:count($new-xml/body/div/p[@class eq "p3"]), 2),
@@ -75,13 +72,11 @@ as item()*
 declare %test:case function advanced-operation()
 as item()*
 {
-  let $new-xml := 
-				let $id := mem:copy($test-xml) 
-				return
-				(
-				mem:replace($id,$test-xml/head/title,element title {"This is so awesome!"}),
-				mem:insert-child($id,$test-xml/body/div/p,attribute data-info {"This is also awesome!"}),
-				mem:execute($id)	
+	let $new-xml := 
+	        mem:execute(mem:insert-child(mem:replace(mem:copy($test-xml),
+						$test-xml/head/title,element title {"This is so awesome!"}
+					),
+					$test-xml/body/div/p, attribute data-testing {"this-is-a-test"})
 				)
 				
   return (assert:equal(fn:string($new-xml/head/title), "This is so awesome!"),
@@ -93,13 +88,11 @@ declare %test:case function copy()
 as item()*
 {
   let $test-xml := document { $test-xml }/html
-  let $new-xml := 
-				let $id := mem:copy($test-xml) 
-				return
-				(
-				mem:replace($id,$test-xml/head/title,element title {"This is so awesome!"}),
-				mem:insert-child($id,$test-xml/body/div/p,attribute data-info {"This is also awesome!"}),
-				mem:execute($id)	
+	let $new-xml := 
+	        mem:execute(mem:insert-child(mem:replace(mem:copy($test-xml),
+						$test-xml/head/title,element title {"This is so awesome!"}
+					),
+					$test-xml/body/div/p, attribute data-testing {"this-is-a-test"})
 				)
   return (assert:equal($new-xml instance of element(html), fn:true()),
 			assert:equal(fn:string($new-xml/head/title), "This is so awesome!"),
@@ -111,31 +104,24 @@ declare %test:case function multiple-operations-on-one-node()
 as item()*
 {
   let $title := $test-xml/head/title
-  let $new-xml := 
-				let $id := mem:copy($title) 
-				return
-				(
-				mem:rename($id,$title,fn:QName("","new-title")),
-				mem:replace-value($id,$title,"This is so awesome!"),
-				mem:execute($id)	
+	let $new-xml := 
+	        mem:execute(mem:replace-value(mem:rename(mem:copy($title),
+						$title,fn:QName("","new-title")
+					),
+					$title,"This is so awesome!")
 				)
   return (assert:equal($new-xml instance of element(new-title), fn:true()),
 			assert:equal(fn:string($new-xml), "This is so awesome!"))
 };
 
-(:The following tests must be commented out due to them breaking the current XQuery parser in XRay :)
-
 declare %test:case function transform-function-transaction()
 as item()*
 {
   let $title := $test-xml/head/title
-  let $new-xml := 
-				let $id := mem:copy($title) 
-				return
-				(
-				mem:transform($id,$title,function($node as node()) as node()* {element new-title {"This is so awesome!"}}),
-				mem:execute($id)	
-				)
+	let $new-xml := 
+	        mem:execute(mem:transform(mem:copy($title),
+						$title,function($node as node()) as node()* {element new-title {"This is so awesome!"}}
+					))
   return (assert:equal($new-xml instance of element(new-title), fn:true()),
 			assert:equal(fn:string($new-xml), "This is so awesome!"))
 };
