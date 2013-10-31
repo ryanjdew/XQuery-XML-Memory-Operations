@@ -290,7 +290,7 @@ as node()*
   if (exists(map:get($transaction-map, "nodes-to-modify")))
   then
      mem-op:process(
-       map:get($queue, $transaction-id),
+       $transaction-map,
        (: Ensure nodes to modify are in document order by using union :)
        map:get($transaction-map, "nodes-to-modify") | (),
        map:get($transaction-map, "modifier-nodes"),
