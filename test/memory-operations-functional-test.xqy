@@ -76,7 +76,7 @@ as item()*
 	        mem:execute(mem:insert-child(mem:replace(mem:copy($test-xml),
 						$test-xml/head/title,element title {"This is so awesome!"}
 					),
-					$test-xml/body/div/p, attribute data-testing {"this-is-a-test"})
+					$test-xml/body/div/p, attribute data-info {"This is also awesome!"})
 				)
 				
   return (assert:equal(fn:string($new-xml/head/title), "This is so awesome!"),
@@ -92,7 +92,7 @@ as item()*
 	        mem:execute(mem:insert-child(mem:replace(mem:copy($test-xml),
 						$test-xml/head/title,element title {"This is so awesome!"}
 					),
-					$test-xml/body/div/p, attribute data-testing {"this-is-a-test"})
+					$test-xml/body/div/p, attribute data-info {"This is also awesome!"})
 				)
   return (assert:equal($new-xml instance of element(html), fn:true()),
 			assert:equal(fn:string($new-xml/head/title), "This is so awesome!"),
