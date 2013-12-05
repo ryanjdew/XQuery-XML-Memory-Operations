@@ -59,23 +59,26 @@ declare function node-op:inbetween-inclusive-end($nodes as node()*, $start as no
 };
 
 declare %private function node-op:inbetween($nodes as node()*, $start as node()?, $end as node()?, $inclusion as xs:string*) {
-	(
-	   if ($inclusion = 'start')
-	   then $nodes intersect $start
-	   else ()
-	) union (
-	   if (exists($start) and exists($end))
-	   then $nodes[. >> $start][. << $end]
-	   else if (exists($start))
-	   then $nodes[. >> $start]
-	   else if (exists($end))
-	   then $nodes[. << $end]
-	   else ()
-	) union (
-	   if ($inclusion = 'end')
-	   then $nodes intersect $end
-	   else ()
-	)
+  if (fn:exists($nodes))
+  then
+    (
+      if ($inclusion = 'start')
+      then $nodes intersect $start
+      else ()
+    ) union (
+      if (exists($start) and exists($end))
+      then $nodes[. >> $start][. << $end]
+      else if (exists($start))
+      then $nodes[. >> $start]
+      else if (exists($end))
+      then $nodes[. << $end]
+      else ()
+    ) union (
+      if ($inclusion = 'end')
+      then $nodes intersect $end
+      else ()
+    )
+  else ()
 };
 
 

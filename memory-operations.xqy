@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 1.0.3
+@version 1.0.4
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 6+.
 ~:)
@@ -403,10 +403,31 @@ as node()*
   mem-op:process(
     $transaction-map,
     $nodes-to-modify,
+    node-op:outermost($nodes-to-modify),
+    $new-nodes,
+    $operation,
+    $root-node
+  )
+};
+
+declare  
+function mem-op:process(
+  $transaction-map as map:map?,
+  $nodes-to-modify as node()+,
+  $outermost-nodes-to-modify as node()+,
+  $new-nodes as node()*,
+  $operation,
+  $root-node as node()?)
+as node()*
+{
+  mem-op:process(
+    $transaction-map,
+    $nodes-to-modify,
+    $outermost-nodes-to-modify,
     $nodes-to-modify,
     $new-nodes,
     $operation,
-    mem-op:find-ancestor-intersect(node-op:outermost($nodes-to-modify), 1, ()) 
+    mem-op:find-ancestor-intersect($outermost-nodes-to-modify, 1, ()) 
         except
     (if (exists($root-node))
      then $root-node/ancestor::node()
@@ -418,6 +439,7 @@ declare %private
 function mem-op:process(
   $transaction-map as map:map?,
   $nodes-to-modify as node()+,
+  $outermost-nodes-to-modify as node()+,
   $all-nodes-to-modify as node()*,
   $new-nodes as node()*,
   $operation,
@@ -427,6 +449,7 @@ as node()*
   mem-op:process(
     $transaction-map,
     $nodes-to-modify,
+    $outermost-nodes-to-modify,
     $all-nodes-to-modify,
     $new-nodes,
     $operation,
@@ -440,6 +463,7 @@ declare %private
 function mem-op:process(
   $transaction-map as map:map?,
   $nodes-to-modify as node()+,
+  $outermost-nodes-to-modify as node()+,
   $all-nodes-to-modify as node()*,
   $new-nodes as node()*,
   $operation,
@@ -450,11 +474,39 @@ as node()*
   mem-op:process(
     $transaction-map,
     $nodes-to-modify,
+    $outermost-nodes-to-modify,
     $all-nodes-to-modify,
     $new-nodes,
     $operation,
     $common-ancestors,
     $common-parent,
+    ($common-parent/node(), $common-parent/@node()) intersect
+     $outermost-nodes-to-modify/ancestor-or-self::node())
+};
+
+declare %private 
+function mem-op:process(
+  $transaction-map as map:map?,
+  $nodes-to-modify as node()+,
+  $outermost-nodes-to-modify as node()+,
+  $all-nodes-to-modify as node()*,
+  $new-nodes as node()*,
+  $operation,
+  $common-ancestors as node()*,
+  $common-parent as node()?,
+  $merging-nodes as node()*)
+as node()*
+{
+  mem-op:process(
+    $transaction-map,
+    $nodes-to-modify,
+    $outermost-nodes-to-modify,
+    $all-nodes-to-modify,
+    $new-nodes,
+    $operation,
+    $common-ancestors,
+    $common-parent,
+    $merging-nodes,
     (: create new XML trees for all the unique paths to 
         the items to modify :)
     <mem-op:trees>{
@@ -462,8 +514,7 @@ as node()*
         then
         mem-op:build-subtree(
           $transaction-map,
-          ($common-parent/node(), $common-parent/@node()) intersect
-          $nodes-to-modify/ancestor-or-self::node(),
+          $merging-nodes,
           $nodes-to-modify,
           $new-nodes,
           $operation,
@@ -476,7 +527,7 @@ as node()*
                     $transaction-map,
                     if (exists($reference-node))
                     then ($reference-node/@node(),$reference-node/node()) intersect $nodes-to-modify/ancestor-or-self::node()
-                    else node-op:outermost($nodes-to-modify),
+                    else $outermost-nodes-to-modify,
                     $nodes-to-modify,
                     $new-nodes,
                     $operation,
@@ -490,11 +541,13 @@ declare %private
 function mem-op:process(
   $transaction-map as map:map?,
   $nodes-to-modify as node()+,
+  $outermost-nodes-to-modify as node()+,
   $all-nodes-to-modify as node()*,
   $new-nodes as node()*,
   $operation,
   $common-ancestors as node()*,
   $common-parent as node()?,
+  $merging-nodes as node()*,
   $trees as element(mem-op:trees))
 as node()*
 {
@@ -515,11 +568,11 @@ as node()*
         $common-parent,
         mem-op:place-trees(
           (: Reduce iterations by using outermost nodes :)
-          node-op:outermost($nodes-to-modify except $common-parent),
+          $outermost-nodes-to-modify except $common-parent,
           (: Pass attributes and child nodes excluding ancestors of nodes to modify. :)
-          $common-parent/(@* | node())
+          ($common-parent/node(), $common-parent/@node())
             except
-          $nodes-to-modify/ancestor-or-self::node(),
+          $merging-nodes,
           (: New sub trees to put in place. :)
           $trees),
         $new-nodes,
@@ -532,7 +585,7 @@ as node()*
   else
     mem-op:place-trees(
       (: Reduce iterations by using outermost nodes :)
-      node-op:outermost($nodes-to-modify),
+      $outermost-nodes-to-modify,
       (: Pass attributes and child nodes excluding ancestors of nodes to modify. :)
       let $copy-node as node()? := 
           if (fn:exists($transaction-map))
@@ -559,14 +612,32 @@ function mem-op:build-subtree(
   $all-ancestors as node()*)
 as node()*
 {
-  let $nodes-to-mod :=
-     $nodes-to-modify intersect
+  mem-op:subtree(
+    $transaction-map,
+    $mod-node,
+    $nodes-to-modify intersect
     ($mod-node/descendant-or-self::node(),
-     $mod-node/descendant-or-self::node()/@node())
-  let $mod-node-id-qn := mem-op:generate-id-qn($nodes-to-mod[1])
-  let $descendant-nodes-to-mod := $nodes-to-mod except $mod-node
+     $mod-node/descendant-or-self::node()/@node()),
+    $new-nodes,
+    $operations,
+    $all-ancestors)
+};
+
+declare %private 
+function mem-op:subtree(
+  $transaction-map as map:map?,
+  $mod-node as node(),
+  $nodes-to-modify as node()*,
+  $new-nodes as node()*,
+  $operations,
+  $all-ancestors as node()*)
+as node()*
+{
+  let $mod-node-id-qn := mem-op:generate-id-qn($nodes-to-modify[1])
+  let $descendant-nodes-to-mod := $nodes-to-modify except $mod-node
   return
-    element { $mod-node-id-qn } {
+    mem-op:wrap-subtree(
+      $mod-node-id-qn,
       if (empty($descendant-nodes-to-mod))
       then
         mem-op:process-subtree(
@@ -578,21 +649,39 @@ as node()*
           $operations,
           ())
       else
-        mem-op:process(
-          $transaction-map,
-          $descendant-nodes-to-mod,
-          $nodes-to-mod,
-          $new-nodes,
-          $operations,
-          (: find the ancestors that all nodes to modify have in common :)
-          mem-op:find-ancestor-intersect(
-            node-op:outermost($descendant-nodes-to-mod),
-            1,
-            ()) except
-          $all-ancestors)
-    }
+        let $outermost-nodes-to-mod as node()+ := node-op:outermost($descendant-nodes-to-mod)
+        return
+          mem-op:process(
+            $transaction-map,
+            $descendant-nodes-to-mod,
+            $outermost-nodes-to-mod,
+            $nodes-to-modify,
+            $new-nodes,
+            $operations,
+            (: find the ancestors that all nodes to modify have in common :)
+            mem-op:find-ancestor-intersect(
+              $outermost-nodes-to-mod,
+              1,
+              ()
+            )
+              except
+            $all-ancestors)
+    )
 };
 
+declare %private 
+function mem-op:wrap-subtree(
+  $mod-node-id-qn as xs:QName,
+  $results as node()*
+)as node()*
+{
+  if ($results)
+  then
+    element { $mod-node-id-qn } {
+      $results
+    }
+  else ()
+};
 (: Creates a new subtree with the changes made based off of the operation.  :)
 declare %private 
 function mem-op:process-subtree(
@@ -647,11 +736,7 @@ as node()*
     (: short circuit if intersect is empty :)
     then ()
     else 
-      mem-op:find-ancestor-intersect(
-        tail($items),
-        $current-position + 1,
-        head($items)/ancestor::node() intersect
-        $ancestor-intersect)
+      $ancestor-intersect intersect head($items)/ancestor::node() intersect $items[fn:last()]/ancestor::node()
   (: otherwise just use the current item's ancestors :)
   else
     mem-op:find-ancestor-intersect(
@@ -663,67 +748,35 @@ as node()*
 (: Place newly created trees in proper order :)
 declare %private 
 function mem-op:place-trees(
-  $nodes-to-modify as node()+,
-  $merging-nodes as node()*,
-  $trees as element(mem-op:trees))
-as node()*
-{
-  mem-op:place-trees(
-    $nodes-to-modify,
-    $merging-nodes,
-    $trees,
-    ()
-  )
-};
-
-(: This is tail recursive. It places the new XML in the proper order for document creation. :)
-declare %private 
-function mem-op:place-trees(
   $nodes-to-modify as node()*,
   $merging-nodes as node()*,
-  $trees as element()*,
-  $result as node()*)
+  $trees as element(mem-op:trees)?)
 as node()*
 {
-  if (exists($nodes-to-modify))
-  then 
-    mem-op:place-trees(
-      tail($nodes-to-modify),
-      node-op:inbetween($merging-nodes, head($nodes-to-modify), ()),
-      $trees,
+  if (empty($nodes-to-modify) or empty($trees[*]))
+  then $merging-nodes
+  else (
+    let $tree-ids := $trees/* ! substring-after(local-name(.),'_')
+    let $count-of-trees := count($tree-ids)
+    for $tree at $pos in $trees/*
+    let $previous-tree-pos := $pos - 1
+    let $previous-tree-id := $tree-ids[position() eq $previous-tree-pos]
+    let $current-tree-id := $tree-ids[position() eq $pos]
+    let $previous-node-to-modify := 
+                           if (exists($previous-tree-id))
+                           then $nodes-to-modify[generate-id() eq $previous-tree-id][1]
+                           else ()
+    let $node-to-modify := $nodes-to-modify[generate-id() eq $current-tree-id][1]
+    return
       (
-        $result,
-        (: Grab new nodes related to the current node to modify :)
-        mem-op:tree-section(head($nodes-to-modify),$merging-nodes,$trees)
+        node-op:inbetween($merging-nodes, $previous-node-to-modify, $node-to-modify),
+        $tree/(attribute::node()|child::node()),
+        if ($pos eq $count-of-trees)
+        then
+          node-op:inbetween($merging-nodes, $node-to-modify, ())
+        else ()
       )
-    )
-   else (
-     $result,
-     $merging-nodes except $result
-   )
-};
-
-(: This function retrieves a new tree tied to a modified node. :)
-declare %private 
-function mem-op:retrieve-trees(
-  $trees as element()*,
-  $node-to-modify-qn as xs:QName)
-as node()*
-{
-  $trees/*[node-name(.) eq $node-to-modify-qn]/(attribute::node() | child::node())
-};
-
-(: This function retrieves a new tree tied to a modified node. :)
-declare %private 
-function mem-op:tree-section(
-  $node-to-modify as node(),
-  $merging-nodes as node()*,
-  $trees as node()*
- )
-as node()*
-{
-  node-op:inbetween($merging-nodes, () , $node-to-modify),
-  mem-op:retrieve-trees($trees, mem-op:generate-id-qn($node-to-modify))
+  )
 };
 
 (: Go up the tree to build new XML using tail recursion. This is used when there are no side 
