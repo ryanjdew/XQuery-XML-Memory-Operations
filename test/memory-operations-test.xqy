@@ -325,3 +325,17 @@ as item()*
 			)
 		)
 };
+
+declare %test:case function throws-error-on-mixed-sources()
+as item()*
+{
+  let $other-doc := <doc><p>my paragraph</p></doc>
+  return
+    assert:true(
+      try {
+        mem:replace(($test-xml,$other-doc)//p, <PARA/>)
+      } catch mem:MIXEDSOURCES {
+        fn:true()
+      }
+    )
+};

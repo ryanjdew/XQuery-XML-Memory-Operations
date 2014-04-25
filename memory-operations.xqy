@@ -349,6 +349,7 @@ as empty-sequence()
     let $modified-node-ids as element()* := mem-op:id-wrapper($nodes-to-modify) (: This line uses function mapping :)
     return
     (
+    mem-op:all-nodes-from-same-doc($nodes-to-modify,map:get($transaction-map,"copy")),
     map:put(
         $transaction-map,
         "operation",
@@ -379,6 +380,14 @@ as empty-sequence()
   else ()
 };
 
+declare function mem-op:all-nodes-from-same-doc($nodes as node()*,$parent-node as node()) as empty-sequence() {
+  (: NOTE: must use every in satisfies to account for multiple outermost nodes :)
+  if (every $n in node-op:outermost(($parent-node,$nodes)) satisfies $n is $parent-node)
+  then ()
+  else
+    error(xs:QName("mem-op:MIXEDSOURCES"), "The nodes to change are comming from multiple sources",$nodes)
+};
+
 (: The process functions handle the core logic for handling forked paths that 
     need to be altered :)
 declare  
@@ -388,6 +397,7 @@ function mem-op:process(
   $operation)
 as node()*
 {
+  mem-op:all-nodes-from-same-doc($nodes-to-modify,root($nodes-to-modify[1])),
   mem-op:process((), $nodes-to-modify, $new-nodes, $operation, ())
 };
 

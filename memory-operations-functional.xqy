@@ -212,6 +212,7 @@ as map:map
     let $modified-node-ids as element()* := mem-op:id-wrapper($nodes-to-modify) (: This line uses function mapping :)
     return
     (
+    mem-op:all-nodes-from-same-doc($nodes-to-modify,map:get($transaction-map,"copy")),
     map:new((
       $transaction-map,
       map:entry(
