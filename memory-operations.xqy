@@ -385,7 +385,7 @@ declare function mem-op:all-nodes-from-same-doc($nodes as node()*,$parent-node a
   if (every $n in node-op:outermost(($parent-node,$nodes)) satisfies $n is $parent-node)
   then ()
   else
-    error(xs:QName("mem-op:MIXEDSOURCES"), "The nodes to change are comming from multiple sources",$nodes)
+    error(xs:QName("mem-op:MIXEDSOURCES"), "The nodes to change are coming from multiple sources",$nodes)
 };
 
 (: The process functions handle the core logic for handling forked paths that 
