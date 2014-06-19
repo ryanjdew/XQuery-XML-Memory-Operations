@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 0.6
+@version 0.7
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 6+.
 :)
@@ -37,7 +37,7 @@ declare function node-op:outermost($nodes as node()*) {
 	(:node-op:function-select((
 		function-lookup(QName('http://www.w3.org/2005/xpath-functions','outermost'), 1),
 		function ($nodes as node()*) { :)
-			$nodes except ($nodes/descendant::node(),$nodes/descendant-or-self::node()/attribute::node())
+			$nodes except $nodes[ancestor::node() intersect $nodes]
 	(:	}
 	))($nodes) :)
 };
