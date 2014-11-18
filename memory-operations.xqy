@@ -289,14 +289,14 @@ as node()*
   (
   if (exists(map:get($transaction-map, "nodes-to-modify")))
   then
-     mem-op:process(
+     mem-op:safe-copy(mem-op:process(
        $transaction-map,
        (: Ensure nodes to modify are in document order by using union :)
        map:get($transaction-map, "nodes-to-modify") | (),
        map:get($transaction-map, "modifier-nodes"),
        map:get($transaction-map, "operation"),
        map:get($transaction-map, "copy")
-     )
+     ))
   else
     mem-op:safe-copy(map:get($transaction-map, "copy"))
   ,
@@ -398,7 +398,7 @@ function mem-op:process(
 as node()*
 {
   mem-op:all-nodes-from-same-doc($nodes-to-modify,root($nodes-to-modify[1])),
-  mem-op:process((), $nodes-to-modify, $new-nodes, $operation, ())
+  mem-op:safe-copy(mem-op:process((), $nodes-to-modify, $new-nodes, $operation, ()))
 };
 
 declare
