@@ -339,3 +339,23 @@ as item()*
       }
     )
 };
+
+declare %test:case function removes-mem-op-namespace()
+as item()*
+{
+  let $title := $test-xml/head/title
+  let $new-xml := 
+				let $id := mem:copy($test-xml) 
+				return
+				(
+				mem:insert-child($id,$test-xml,attribute test {"testing"}),
+        		mem:transform($id,$title,function($node as node()) as node()* {element new-title {"This is so awesome!"}}),
+				mem:execute($id)	
+				)
+  return 
+  	assert:true(fn:empty($new-xml/namespace::mem-op), 'namespace not removed on queued run'),
+  let $title := $test-xml/head/title
+  let $new-xml := mem:insert-child($test-xml,attribute test {"testing"})
+  return 
+  	assert:true(fn:empty($new-xml/namespace::mem-op), 'namespace not removed on direct run')
+};
