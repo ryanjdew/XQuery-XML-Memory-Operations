@@ -26,10 +26,10 @@ declare default function namespace "http://www.w3.org/2005/xpath-functions";
 
 (: Queue insert a child into the node :)
 declare function mem-op:insert-child(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $parent-node as element()*,
   $new-nodes as node()*)
-as map:map?
+as map(*)?
 {
   mem-op:queue(
     $transaction-map, $parent-node, $new-nodes, "insert-child")
@@ -37,10 +37,10 @@ as map:map?
 
 (: Queue insert as first child into the node :)
 declare function mem-op:insert-child-first(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $parent-node as element()*,
   $new-nodes as node()*)
-as map:map?
+as map(*)?
 {
   mem-op:queue(
     $transaction-map,
@@ -51,10 +51,10 @@ as map:map?
 
 (: Queue insert a sibling before the node :)
 declare function mem-op:insert-before(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $sibling as node()*,
   $new-nodes as node()*)
-as map:map?
+as map(*)?
 {
   mem-op:queue(
     $transaction-map, $sibling, $new-nodes, "insert-before")
@@ -62,10 +62,10 @@ as map:map?
 
 (: Queue insert a sibling after the node :)
 declare function mem-op:insert-after(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $sibling as node()*,
   $new-nodes as node()*)
-as map:map?
+as map(*)?
 {
   mem-op:queue(
     $transaction-map, $sibling, $new-nodes, "insert-after")
@@ -73,10 +73,10 @@ as map:map?
 
 (: Queue replace of the node :)
 declare function mem-op:replace(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $replace-nodes as node()*,
   $new-nodes as node()*)
-as map:map?
+as map(*)?
 {
   mem-op:queue(
     $transaction-map,
@@ -87,9 +87,9 @@ as map:map?
 
 (: Queue delete the node :)
 declare function mem-op:delete(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $delete-nodes as node()*)
-as map:map?
+as map(*)?
 {
   mem-op:queue(
     $transaction-map,
@@ -100,10 +100,10 @@ as map:map?
 
 (: Queue renaming of node :)
 declare function mem-op:rename(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $nodes-to-rename as node()*,
   $new-name as xs:QName)
-as map:map?
+as map(*)?
 {
   mem-op:queue(
     $transaction-map,
@@ -114,10 +114,10 @@ as map:map?
 
 (: Queue replacement of a value of an element or attribute :)
 declare function mem-op:replace-value(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $nodes-to-change as node()*,
   $value as xs:anyAtomicType?)
-as map:map?
+as map(*)?
 {
   mem-op:queue(
     $transaction-map,
@@ -128,10 +128,10 @@ as map:map?
 
 (: Queue replacement of contents of an element :)
 declare function mem-op:replace-contents(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $nodes-to-change as node()*,
   $contents as node()*)
-as map:map?
+as map(*)?
 {
   mem-op:queue(
     $transaction-map,
@@ -142,10 +142,10 @@ as map:map?
 
 (: Queues the replacement of the node with the result of the passed function :)
 declare function mem-op:transform(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $nodes-to-change as node()*,
   $transform-function as function(node()) as node()*)
-as map:map?
+as map(*)?
 {
   let $function-key as xs:string := mem-op:function-key($transform-function)
   return 
@@ -165,13 +165,13 @@ as map:map?
 
 (: Select the root to return after transaction :)
 declare function mem-op:copy($node-to-copy as node())
-as map:map
+as map(*)
 {
   map:entry("copy", $node-to-copy)
 };
 
 (: Execute transaction :)
-declare function mem-op:execute($transaction-map as map:map)
+declare function mem-op:execute($transaction-map as map(*))
 as node()*
 {
   if (exists(map:get($transaction-map, "nodes-to-modify")))
@@ -193,11 +193,11 @@ as node()*
 (: Queue actions for later execution :)
 declare %private 
 function mem-op:queue(
-  $transaction-map as map:map,
+  $transaction-map as map(*),
   $nodes-to-modify as node()+,
   $modifier-nodes as node()*,
   $operation as xs:string?)
-as map:map
+as map(*)
 {
   if (fn:exists($nodes-to-modify))
   then 
@@ -265,7 +265,7 @@ as node()*
 
 declare
 function mem-op:process(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $nodes-to-modify as node()+,
   $new-nodes as node()*,
   $operation,
@@ -284,7 +284,7 @@ as node()*
 
 declare
 function mem-op:process(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $nodes-to-modify as node()+,
   $outermost-nodes-to-modify as node()+,
   $new-nodes as node()*,
@@ -309,7 +309,7 @@ as node()*
 
 declare %private
 function mem-op:process(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $nodes-to-modify as node()+,
   $outermost-nodes-to-modify as node()+,
   $all-nodes-to-modify as node()*,
@@ -333,7 +333,7 @@ as node()*
 
 declare %private
 function mem-op:process(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $nodes-to-modify as node()+,
   $outermost-nodes-to-modify as node()+,
   $all-nodes-to-modify as node()*,
@@ -358,7 +358,7 @@ as node()*
 
 declare %private
 function mem-op:process(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $nodes-to-modify as node()+,
   $outermost-nodes-to-modify as node()+,
   $all-nodes-to-modify as node()*,
@@ -413,7 +413,7 @@ as node()*
 
 declare %private
 function mem-op:process(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $nodes-to-modify as node()+,
   $outermost-nodes-to-modify as node()+,
   $all-nodes-to-modify as node()*,
@@ -478,7 +478,7 @@ as node()*
 
 declare %private
 function mem-op:build-subtree(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $mod-node as node(),
   $nodes-to-modify as node()*,
   $new-nodes as node()*,
@@ -499,7 +499,7 @@ as node()*
 
 declare %private
 function mem-op:subtree(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $mod-node as node(),
   $nodes-to-modify as node()*,
   $new-nodes as node()*,
@@ -559,7 +559,7 @@ function mem-op:wrap-subtree(
 (: Creates a new subtree with the changes made based off of the operation.  :)
 declare %private
 function mem-op:process-subtree(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $ancestors as node()*,
   $node-to-modify as node(),
   $node-to-modify-id-qn as xs:QName,
@@ -659,7 +659,7 @@ as node()*
   REVERSE document order. :)
 declare %private
 function mem-op:process-ancestors(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $ancestors as node()*,
   $last-ancestor as node()?,
   $operations,
@@ -697,7 +697,7 @@ as node()*
 (: Generic logic for rebuilding document/element nodes and passing in for  :)
 declare %private
 function mem-op:reconstruct-node-with-additional-modifications(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $node as node(),
   $ordered-content as node()*,
   $new-node as node()*,
@@ -785,7 +785,7 @@ function mem-op:function-key($function as function(*))
 (: This is where the transformations to the XML take place and this module can be extended. :)
 declare %private
 function mem-op:build-new-xml(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $node as node(),
   $operations as xs:string*,
   $modifier-nodes as element(mem-op:modifier-nodes)*)
@@ -803,7 +803,7 @@ function mem-op:build-new-xml(
   likely place extensions will be made. :)
 declare %private
 function mem-op:build-new-xml(
-  $transaction-map as map:map?,
+  $transaction-map as map(*)?,
   $nodes as node()*,
   $operations as xs:string*,
   $modifier-nodes as element(mem-op:modifier-nodes)*,
