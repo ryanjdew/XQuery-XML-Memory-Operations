@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 1.0.6
+@version 1.0.7
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
         and intersect/except expressions. This version works with eXistDB and BaseX
 ~:)
@@ -816,38 +816,38 @@ function mem-op:build-new-xml(
     let $pivot-pos as xs:integer? := $nodes/(if (. is $node) then position() else ())
     let $operation as xs:string := head($operations)
     let $last-in-wins as xs:boolean := $operation = ('replace-value')
+    let $reverse-mod-nodes as xs:boolean := $operation = ('insert-child')
     let $mod-nodes as node()* :=
       let $modifier-nodes :=
             if ($last-in-wins)
             then ($modifier-nodes[@mem-op:operation eq $operation])[1]
-            else $modifier-nodes[@mem-op:operation eq $operation]
+            else if ($reverse-mod-nodes) 
+            then reverse($modifier-nodes[@mem-op:operation eq $operation])
+            else $modifier-nodes[@mem-op:operation eq $operation]      
       return
-        ($modifier-nodes/@* except
-         $modifier-nodes/@mem-op:operation,
-         $modifier-nodes/node() except
-         $modifier-nodes/mem-op:*)
-
+        ($modifier-nodes ! @node()[empty(self::attribute(mem-op:operation))],
+         $modifier-nodes ! node()[empty(self::mem-op:*)])
     let $new-nodes :=
       switch ($operation)
       case "replace" return $mod-nodes
       case "insert-child" return
           element { node-name($node) } {
-            let $attributes-to-insert := $mod-nodes[. instance of attribute()],
+            let $attributes-to-insert := $mod-nodes[self::attribute()],
                 $attributes-to-insert-qns := $attributes-to-insert/node-name(.)
             return
               ($node/@*[not(node-name(.) = $attributes-to-insert-qns)],
                $attributes-to-insert,
                $node/node(),
-               $mod-nodes except $attributes-to-insert)
+               $mod-nodes[exists(. except $attributes-to-insert)])
           }
         case "insert-child-first" return
           element { node-name($node) } {
-            let $attributes-to-insert := $mod-nodes[. instance of attribute()],
+            let $attributes-to-insert := $mod-nodes[self::attribute()],
                 $attributes-to-insert-qns := $attributes-to-insert/node-name(.)
             return
               ($attributes-to-insert,
                $node/@*[not(node-name(.) = $attributes-to-insert-qns)],
-               $mod-nodes except $attributes-to-insert,
+               $mod-nodes[exists(. except $attributes-to-insert)],
                $node/node())
           }
         case "insert-after" return ($node, $mod-nodes)

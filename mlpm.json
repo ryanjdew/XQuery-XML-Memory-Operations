@@ -1,6 +1,6 @@
 {
   "name": "XQuery-XML-Memory-Operations",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "XQuery library module for updating XML in memory",
   "repository": "https://github.com/ryanjdew/XQuery-XML-Memory-Operations.git"
 }
