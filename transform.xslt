@@ -41,7 +41,7 @@
                     <xsl:copy-of select="$replace-node" />
                   </xsl:when>
                   <xsl:when test=". instance of element()">
-                    <xsl:element name="{$node-name}">
+                    <xsl:element name="{QName(namespace-uri-from-QName($node-name), local-name-from-QName($node-name))}"  namespace="{namespace-uri-from-QName($node-name)}">
                       <xsl:choose>
                         <xsl:when test="$operation-names = 'replace-value'">
                           <xsl:value-of select="$operations[@mem-op:operation = 'replace-value']/(@node()[empty(self::attribute(mem-op:operation))]|node()[empty(self::mem-op:*)])" />
@@ -143,7 +143,7 @@
         <xsl:copy-of select="$operations[@mem-op:operation = 'insert-after']/(@node()[empty(self::attribute(mem-op:operation))]|node()[empty(self::mem-op:*)])" />
       </xsl:when>
       <xsl:when test=". instance of element()">
-        <xsl:element name="{name()}">
+        <xsl:element name="{node-name(.)}" namespace="{namespace-uri()}">
           <xsl:apply-templates select="@*" />
           <xsl:apply-templates/>
         </xsl:element>
