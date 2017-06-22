@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 @author Ryan Dew (ryan.j.dew@gmail.com)
-@version 1.0.3
+@version 1.1.0
 @description This is a module with function changing XML in memory by creating subtrees using the ancestor, preceding-sibling, and following-sibling axes
 				and intersect/except expressions. Requires MarkLogic 7+.
 ~:)
@@ -178,21 +178,23 @@ as map:map
 declare function mem-op-fun:execute($transaction-map as map:map)
 as node()*
 {
-  if (exists(map:get($transaction-map, "nodes-to-modify")))
-  then
-    mem-op:process(
-      $transaction-map,
-      (: Ensure nodes to modify are in document order by using union :)
-      map:get($transaction-map, "nodes-to-modify") | (),
-      map:get($transaction-map, "modifier-nodes"),
-      map:get($transaction-map, "operation"),
-      map:get($transaction-map, "copy")
+  let $root := fn:head(
+      (
+        map:get($transaction-map, "copy"), 
+        fn:root(map:get($transaction-map, "nodes-to-modify")[1])
+      )
     )
-  else
-    validate lax {
-      map:get($transaction-map, "copy")
-    },
-  map:clear($transaction-map)
+  let $results := 
+    xdmp:xslt-invoke(
+      'transform.xslt',
+      $root,
+      map:entry('transaction-map',$transaction-map)
+    )
+  return
+    if ($root instance of document-node()) then
+      $results
+    else
+      $results/node()
 };
 
 (: Begin private functions! :)
