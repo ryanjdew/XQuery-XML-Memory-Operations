@@ -52,6 +52,33 @@ return
 :)
 ```
 
+## Pure XQuery 3.1
+
+Using pure, standard XQuery 3.1, the above examples can be written as
+
+```xquery
+import module namespace mem-op = "http://maxdewpoint.blogspot.com/memory-operations" at "memory-operations-pure-xquery.xqy";
+mem-op:copy(fn:root($file)) 
+=> mem-op:replace($file/title, element title {"my new title"}) 
+=> mem-op:insert-child($file, attribute new-attribute {"my new attribute"}) 
+=> mem-op:execute()
+```
+
+and
+
+```xquery
+import module namespace mem-op = "http://maxdewpoint.blogspot.com/memory-operations" at "memory-operations-pure-xquery.xqy";
+let $oldx := /a/b/x
+return
+	($oldx,
+	mem-op:copy($oldx) 
+  => mem-op:rename($oldx, fn:QName("","newx"))
+  => mem-op:replace-value($oldx, $oldx * 5)
+  => mem-op:execute()
+	)
+```	
+	
+
 ## Other Operations
  ```xquery
 (: See http://www.w3.org/TR/xquery-update-10/#id-delete :)
