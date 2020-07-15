@@ -1,4 +1,4 @@
-xquery version "3.0";
+xquery version "3.1";
 
 (:~
 Copyright (c) 2016 Ryan Dew
@@ -149,7 +149,7 @@ as map(*)?
 {
   let $function-key as xs:string := mem-op:function-key($transform-function)
   return 
-    map:new((
+    map:merge((
       mem-op:queue(
         $transaction-map,
         $nodes-to-change,
@@ -160,7 +160,7 @@ as map(*)?
         $function-key,
         $transform-function
       )
-    ))
+    ), map {"duplicates": "use-last"})
 };
 
 (: Select the root to return after transaction :)
@@ -206,7 +206,7 @@ as map(*)
     return
     (
     mem-op:all-nodes-from-same-doc($nodes-to-modify,map:get($transaction-map,"copy")),
-    map:new((
+    map:merge((
       $transaction-map,
       map:entry(
         "operation",
@@ -234,7 +234,7 @@ as map(*)
          (: Ensure nodes to modifier nodes are accummulated :)
          map:get($transaction-map, "modifier-nodes"))
       )
-    ))
+    ), map {"duplicates": "use-last"})
     )
   else
     $transaction-map
